@@ -39,10 +39,30 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
 - **Entorno gestionado por `uv`.** No hay `.venv` manual que activar: cada comando corre
   con `uv run <comando>` (o `uv run python`, `uv run pytest`, etc.), y `uv sync` instala
   las dependencias declaradas en `pyproject.toml` (`uv.lock` fija las versiones exactas).
-- **Estructura:** `app/` (paquete de la aplicación) — `app/main.py` (instancia de FastAPI),
-  `app/core/` (config, conexión a DB), `app/models/` (modelos SQLModel), `app/schemas/`
-  (schemas Pydantic de entrada/salida cuando difieran del modelo), `app/api/` (routers).
-  `alembic/` para las migraciones, `tests/` para las pruebas.
+- **Estructura por dominio:**
+
+  ```
+  app/
+  ├── main.py            create_app(): routers, manejadores de errores, CORS, CSRF, límite
+  ├── models.py          importa los modelos de cada dominio (lo que ve Alembic)
+  ├── core/              configuración y conexión, sin lógica de negocio
+  │   ├── config.py      Settings (pydantic-settings, lee .env)
+  │   ├── db.py          engine + get_session
+  │   ├── rate_limit.py  limiter de slowapi
+  │   └── security/      passwords, tokens (JWT), cookies, csrf, network (client_ip)
+  ├── common/            transversal, sin modelos: errors, pagination, money, dates, email
+  └── <dominio>/         models.py, schemas.py, services.py, router.py, templates/email/
+  tests/
+  ├── conftest.py        base de prueba, sesión con rollback, app, client, csrf_client
+  ├── database.py        crear/borrar la base de prueba y su protección de nombre
+  ├── http.py            attach_csrf(client)
+  ├── factories.py       BaseFactory (factory-boy)
+  └── <dominio>/test_*.py
+  ```
+
+  Un dominio nunca importa de la carpeta de otro, salvo `accounts` para la sesión y los
+  permisos; lo que usan dos dominios sube a `common/`. Cada dominio nuevo agrega su
+  `import` en `app/models.py` para que Alembic vea sus tablas.
 - **Modelo de usuario:** aún no existe un modelo de dominio en código. El contexto ya
   llegó (`docs/CONTEXTO.md` del workspace: Administrador, Asesor comercial, Encargado de
   proveedores y alianzas, Operativo — con roles/permisos por RF-03), pero el diagrama ER
@@ -51,31 +71,79 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   modelo de autenticación después de tener migraciones aplicadas es doloroso — mejor
   definirlo bien la primera vez.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
-  Driver `psycopg` 3.
+  Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
+  entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
 - Migraciones con Alembic: `uv run alembic revision --autogenerate -m "..."` y
   `uv run alembic upgrade head`. Revisa siempre el archivo autogenerado antes de aplicarlo.
+- **Variables de entorno:** ver `.env.example` (local) y la tabla de "Despliegue" de la spec
+  de base técnica en el workspace (Railway).
+- **Levantar:** `uv run uvicorn app.main:app --reload`. Con `DEBUG=true` el esquema está en
+  `/api/openapi.json` y Swagger en `/api/docs`; sin `DEBUG` no se publican.
+
+## Contrato de la API
+
+- Todo bajo `/api/`, sin barra final, salvo `/health`.
+- **Errores:** siempre una subclase de `ApiError` (`app/common/errors.py`). Los manejadores
+  arman `{"detail", "code", "fields"}`; nunca se devuelve un `JSONResponse` de error a mano.
+  El 422 de FastAPI sale como `validation_error`, el `StaleDataError` del bloqueo optimista
+  como `409 stale_version` y el límite de solicitudes como `429 throttled`. Un 500 se
+  registra solo con la clase de la excepción y su traza, nunca con su mensaje.
+- **Listados:** `response_model=Page[Esquema]` + `Depends(page_params)` + `paginate(...)` de
+  `app/common/pagination.py`. El servicio pone un orden estable (último criterio `id`).
+- **Entrada:** esquemas Pydantic con `model_config = ConfigDict(extra="forbid")`.
+- **CSRF:** dependencia de toda la app; toda mutación bajo `/api/` exige `X-CSRF-Token`
+  igual a la cookie `escapate_csrf` (`GET /api/auth/csrf`). No hay que declararlo por
+  endpoint.
+- **Cookies:** sus nombres, rutas y flags solo se conocen en `app/core/security/cookies.py`.
+- **IP del cliente:** solo `client_ip()` (`app/core/security/network.py`) lee
+  `X-Forwarded-For`, según `TRUSTED_PROXY_COUNT`.
+- **Límite de solicitudes:** `@limiter.limit(...)` de `app/core/rate_limit.py`; el endpoint
+  declara `request: Request`.
+- **Correo:** `send_email(to, subject, domain, name, context)` de `app/common/email.py`, con
+  plantillas `<dominio>/templates/email/<name>.txt|.html`. Cualquier fallo del proveedor
+  sale como `EmailDeliveryError`.
 
 ## Reglas de diseño del código
 
 - **Capas en una sola dirección:** routers (HTTP) → services (reglas y transacciones) →
   modelos. Un router no tiene lógica de negocio; un servicio no arma respuestas HTTP ni lee
   el request.
+- **Una transacción por petición:** el servicio hace sus escrituras y termina con un solo
+  `session.commit()`. Nunca `with session.begin():` en un servicio (falla si una dependencia
+  ya leyó de la base en la misma petición).
+- **Fecha de hoy:** `app/common/dates.today()` (Bogotá), nunca `date.today()`.
 - **Una responsabilidad por archivo**, ~250 líneas por módulo como referencia: un módulo que
   crece se vuelve paquete (`services/__init__.py` + un archivo por tema) sin cambiar quién lo
   importa.
 - **No duplicar.** La segunda vez que aparece algo se extrae; un dominio nunca importa de la
   carpeta de otro — si dos lo necesitan, sube a lo común.
 - **Dinero en pesos enteros, sin centavos, nunca `float`.** Lo que produce fracciones
-  (márgenes, comisiones) se calcula con `Decimal` y se redondea al peso en un solo helper.
+  (márgenes, comisiones) se calcula con `Decimal` y se redondea al peso solo con
+  `app/common/money.py` (`round_to_peso`, `apply_percentage`).
 - **Elegir la mejor opción, no la librería por defecto.** Ante una necesidad técnica se
   comparan las alternativas reales (lo que trae FastAPI/SQLModel, una librería, código
   propio) y se deja escrito lo elegido y lo descartado.
+
+## Pruebas
+
+- PostgreSQL real, nunca SQLite. Cada corrida crea la base `app_escapate_test`, aplica las
+  migraciones (sube, baja y vuelve a subir) y la borra al terminar; el rol local necesita
+  `CREATEDB`. El `conftest` se niega a correr si `TEST_DATABASE_URL` no termina en `_test`.
+- Cada test corre en una transacción que se revierte: el `commit()` de un servicio libera un
+  savepoint, no deja datos para el siguiente test.
+- Fixtures: `session`, `app`, `client` (sin sesión, https) y `csrf_client` (con token CSRF,
+  para mutaciones). Rutas de prueba: un `APIRouter` en el archivo del test, incluido en el
+  `app` del fixture.
+- Fábricas en `tests/factories.py` sobre `BaseFactory`. Correos `@example.com`, nunca datos
+  personales reales.
+- `filterwarnings = ["error"]`: una advertencia rompe la suite; se corrige la causa, no se
+  silencia.
 
 ## Antes de proponer un PR
 
 El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 
-1. `uv run pytest -q`
+1. `uv run pytest --cov -q`
 2. `uv run ruff check .`
 3. `uv run black --check .`
 4. `uv run alembic check` (con la base de datos local encendida): no quedan cambios de
@@ -83,16 +151,32 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 5. Revisar el diff completo buscando bugs: casos borde, código duplicado, datos personales
    en logs o pruebas, tests que no afirman nada.
 
+## Trampas conocidas
+
+- **`alembic` es librería, no la carpeta:** la carpeta `alembic/` hace que ruff tome la
+  librería como código propio; por eso `known-third-party = ["alembic"]` en `pyproject.toml`.
+- **Límite de solicitudes en las pruebas:** los contadores viven en memoria; el fixture
+  `reset_rate_limits` los limpia antes de cada test. Si se agrega otro `Limiter`, también.
+- **Starlette 1.6** emitía una advertencia de `anyio` en el `TestClient`; con
+  `filterwarnings = error` rompe la colección. Mantener Starlette ≥ 1.7.
+- **`fastapi dev` no está instalado** (necesita `fastapi[standard]`): se levanta con
+  `uvicorn`.
+- **Un 500 llega al navegador sin cabeceras CORS:** Starlette arma el 500 en su middleware
+  más externo, por fuera de `CORSMiddleware`, así que desde otro subdominio el frontend lo ve
+  como un fallo de red y no como `internal_error`. La respuesta sí tiene la forma común (se
+  ve con `curl` o en el log); no confundirlo con un problema de CORS de la configuración.
+
 ## Pendiente antes de escribir los modelos del dominio
 
 El contexto ya está en `docs/CONTEXTO.md` del workspace (36 RF, 51 HU), pero antes de
 generar la primera migración real hace falta: resolver las 5 preguntas abiertas del modelo
 de datos con el agente `arquitecto`, y empezar por RF-01 a RF-03 (auth + usuarios + roles/
-permisos) — es la base de la que dependen los demás módulos (CRM, cotizaciones, pagos). El
-`health check` en `app/main.py` es el único endpoint real por ahora.
+permisos) — es la base de la que dependen los demás módulos (CRM, cotizaciones, pagos). Los
+únicos endpoints reales por ahora son `/health` y `GET /api/auth/csrf`.
 
 ## Stack
 
-FastAPI + SQLModel + Alembic + PostgreSQL, gestor `uv`. Aún sin autenticación ni modelos de
-dominio en código — se añaden cuando arranque el trabajo real (empezando por auth/usuarios/
-roles).
+FastAPI + SQLModel + Alembic + PostgreSQL, gestor `uv`. Contraseñas con `pwdlib` (Argon2id),
+JWT con PyJWT, recuperación con `itsdangerous`, límite con `slowapi`, correo con Jinja2 +
+`httpx2`. La base técnica está lista; aún sin modelos de dominio ni login — se añaden con
+`features/001` (autenticación).
