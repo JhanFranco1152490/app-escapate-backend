@@ -55,6 +55,33 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
 - Migraciones con Alembic: `uv run alembic revision --autogenerate -m "..."` y
   `uv run alembic upgrade head`. Revisa siempre el archivo autogenerado antes de aplicarlo.
 
+## Reglas de diseño del código
+
+- **Capas en una sola dirección:** routers (HTTP) → services (reglas y transacciones) →
+  modelos. Un router no tiene lógica de negocio; un servicio no arma respuestas HTTP ni lee
+  el request.
+- **Una responsabilidad por archivo**, ~250 líneas por módulo como referencia: un módulo que
+  crece se vuelve paquete (`services/__init__.py` + un archivo por tema) sin cambiar quién lo
+  importa.
+- **No duplicar.** La segunda vez que aparece algo se extrae; un dominio nunca importa de la
+  carpeta de otro — si dos lo necesitan, sube a lo común.
+- **Dinero con `Decimal`, nunca `float`.**
+- **Elegir la mejor opción, no la librería por defecto.** Ante una necesidad técnica se
+  comparan las alternativas reales (lo que trae FastAPI/SQLModel, una librería, código
+  propio) y se deja escrito lo elegido y lo descartado.
+
+## Antes de proponer un PR
+
+El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
+
+1. `uv run pytest -q`
+2. `uv run ruff check .`
+3. `uv run black --check .`
+4. `uv run alembic check` (con la base de datos local encendida): no quedan cambios de
+   modelos sin migración.
+5. Revisar el diff completo buscando bugs: casos borde, código duplicado, datos personales
+   en logs o pruebas, tests que no afirman nada.
+
 ## Pendiente antes de escribir los modelos del dominio
 
 El contexto ya está en `docs/CONTEXTO.md` del workspace (36 RF, 51 HU), pero antes de
