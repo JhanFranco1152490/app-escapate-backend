@@ -20,6 +20,7 @@ from tests.database import (  # noqa: E402
     drop_database,
     ensure_test_database_name,
 )
+from tests.http import attach_csrf  # noqa: E402
 
 ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
 
@@ -69,3 +70,9 @@ def app(session):
 def client(app):
     # https para que las cookies Secure viajen igual que en producción.
     return TestClient(app, base_url="https://testserver", raise_server_exceptions=False)
+
+
+@pytest.fixture
+def csrf_client(client):
+    """Cliente sin sesión pero con token CSRF: para probar mutaciones."""
+    return attach_csrf(client)

@@ -9,6 +9,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.common.errors import ApiError
 from app.core.config import Settings
 from app.main import create_app
+from tests.http import attach_csrf
 
 SECRET = "x" * 32
 
@@ -54,7 +55,8 @@ def raise_unhandled():
 def build_client(debug: bool = False) -> TestClient:
     app = create_app(Settings(secret_key=SECRET, debug=debug))
     app.include_router(router)
-    return TestClient(app, base_url="https://testserver", raise_server_exceptions=False)
+    client = TestClient(app, base_url="https://testserver", raise_server_exceptions=False)
+    return attach_csrf(client)
 
 
 @pytest.fixture
