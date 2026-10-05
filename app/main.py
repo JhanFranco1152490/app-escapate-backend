@@ -1,8 +1,14 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="Escápate API")
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="Escápate API")
+
+    @app.get("/health", include_in_schema=False)
+    def health_check() -> dict[str, str]:
+        return {"status": "ok"}
+
+    return app
 
 
-@app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
+app = create_app()

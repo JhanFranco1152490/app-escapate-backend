@@ -42,6 +42,10 @@ exclude = ["alembic/versions"]
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.ruff.lint.isort]
+# La carpeta alembic/ de las migraciones hace que ruff tome la librería como código propio.
+known-third-party = ["alembic"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
