@@ -65,7 +65,8 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   importa.
 - **No duplicar.** La segunda vez que aparece algo se extrae; un dominio nunca importa de la
   carpeta de otro — si dos lo necesitan, sube a lo común.
-- **Dinero con `Decimal`, nunca `float`.**
+- **Dinero en pesos enteros, sin centavos, nunca `float`.** Lo que produce fracciones
+  (márgenes, comisiones) se calcula con `Decimal` y se redondea al peso en un solo helper.
 - **Elegir la mejor opción, no la librería por defecto.** Ante una necesidad técnica se
   comparan las alternativas reales (lo que trae FastAPI/SQLModel, una librería, código
   propio) y se deja escrito lo elegido y lo descartado.
