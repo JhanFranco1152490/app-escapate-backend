@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -87,6 +88,10 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StaleDataError)
     async def on_stale_data(request: Request, exc: StaleDataError):
         return error_response(409, StaleVersion.code, StaleVersion.detail)
+
+    @app.exception_handler(RateLimitExceeded)
+    async def on_rate_limit(request: Request, exc: RateLimitExceeded):
+        return error_response(429, "throttled", "Demasiados intentos. Espera un momento.")
 
     @app.exception_handler(Exception)
     async def on_unhandled(request: Request, exc: Exception):

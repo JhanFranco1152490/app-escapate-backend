@@ -6,6 +6,7 @@ from app.accounts.router import router as accounts_router
 from app.common.errors import ErrorResponse, register_error_handlers
 from app.core.config import Settings
 from app.core.config import settings as default_settings
+from app.core.rate_limit import limiter
 from app.core.security.csrf import CSRF_HEADER, csrf_protect
 
 _ERROR_REF = {"$ref": "#/components/schemas/ErrorResponse"}
@@ -22,6 +23,7 @@ def create_app(settings: Settings = default_settings) -> FastAPI:
         dependencies=[Depends(csrf_protect)],
     )
     register_error_handlers(app)
+    app.state.limiter = limiter
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.frontend_origin],

@@ -13,6 +13,7 @@ from sqlmodel import Session, create_engine  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
 from app.core.db import get_session  # noqa: E402
+from app.core.rate_limit import limiter  # noqa: E402
 from app.main import create_app  # noqa: E402
 from tests.database import (  # noqa: E402
     admin_engine,
@@ -57,6 +58,12 @@ def session(engine):
     session.close()
     transaction.rollback()
     connection.close()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    # Los contadores del límite viven en memoria y pasarían de un test al siguiente.
+    limiter.reset()
 
 
 @pytest.fixture
