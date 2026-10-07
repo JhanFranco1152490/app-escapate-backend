@@ -4,7 +4,7 @@ from sqlmodel import Session, create_engine
 
 from app.core.config import settings
 
-engine = create_engine(settings.database_url, echo=settings.debug)
+engine = create_engine(settings.database_url)
 
 
 def get_session() -> Generator[Session, None, None]:
