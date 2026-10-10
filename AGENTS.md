@@ -63,13 +63,22 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   Un dominio nunca importa de la carpeta de otro, salvo `accounts` para la sesión y los
   permisos; lo que usan dos dominios sube a `common/`. Cada dominio nuevo agrega su
   `import` en `app/models.py` para que Alembic vea sus tablas.
-- **Modelo de usuario:** aún no existe un modelo de dominio en código. El contexto ya
-  llegó (`docs/CONTEXTO.md` del workspace: Administrador, Asesor comercial, Encargado de
-  proveedores y alianzas, Operativo — con roles/permisos por RF-03), pero el diagrama ER
-  formal todavía no — no generes la primera migración real de `User`/`Role` sin que el
-  agente `arquitecto` (o el equipo) resuelva las preguntas abiertas del modelo. Cambiar el
-  modelo de autenticación después de tener migraciones aplicadas es doloroso — mejor
-  definirlo bien la primera vez.
+- **Cuentas y acceso (`app/accounts/`):**
+  - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un
+    solo `Role`; los permisos del rol en `RolePermission`, como texto validado contra el
+    registro `app/accounts/permissions.py`.
+  - Dos formas de entrar: tipo y número de documento + contraseña (`POST /api/auth/login`)
+    y Google con el Gmail personal (`/api/auth/google/start` y `/callback`). Google nunca
+    crea cuentas: solo entra quien el administrador registró, y se vincula por `sub`.
+  - La sesión es común a las dos: `services/sessions.py` emite, rota y revoca los refresh
+    tokens (máximo 3 sesiones por cuenta), registra cada ingreso en `login_event` (se
+    guardan 90 días) y actualiza `last_activity_at`.
+  - Documento y correo se normalizan solo con `app/accounts/identifiers.py`; la política de
+    contraseñas vive solo en `app/accounts/passwords.py`.
+  - Endpoint protegido: `Depends(require_permission("dominio.accion"))`; la cuenta de la
+    sesión, con `CurrentUser`.
+  - Primera cuenta (o respaldo si el único administrador pierde el acceso):
+    `uv run python -m app.cli create-admin`.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
@@ -159,6 +168,12 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
   `reset_rate_limits` los limpia antes de cada test. Si se agrega otro `Limiter`, también.
 - **Starlette 1.6** emitía una advertencia de `anyio` en el `TestClient`; con
   `filterwarnings = error` rompe la colección. Mantener Starlette ≥ 1.7.
+- **Sesión de las fábricas:** asignar `BaseFactory._meta.sqlalchemy_session` no llega a las
+  subclases (cada una copia sus opciones al crearse). Las fábricas toman la sesión de la
+  prueba con `sqlalchemy_session_factory`; el fixture `session` la fija con `use_session`.
+- **Migraciones autogeneradas:** revisar los tipos. La plantilla importa `sqlmodel` porque
+  autogenerate escribe `sqlmodel.sql.sqltypes.AutoString`; en la primera migración se
+  cambiaron por `sa.String`.
 - **`fastapi dev` no está instalado** (necesita `fastapi[standard]`): se levanta con
   `uvicorn`.
 - **Un 500 llega al navegador sin cabeceras CORS:** Starlette arma el 500 en su middleware
@@ -166,17 +181,14 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
   como un fallo de red y no como `internal_error`. La respuesta sí tiene la forma común (se
   ve con `curl` o en el log); no confundirlo con un problema de CORS de la configuración.
 
-## Pendiente antes de escribir los modelos del dominio
+## Pendiente antes de los demás modelos del dominio
 
-El contexto ya está en `docs/CONTEXTO.md` del workspace (36 RF, 51 HU), pero antes de
-generar la primera migración real hace falta: resolver las 5 preguntas abiertas del modelo
-de datos con el agente `arquitecto`, y empezar por RF-01 a RF-03 (auth + usuarios + roles/
-permisos) — es la base de la que dependen los demás módulos (CRM, cotizaciones, pagos). Los
-únicos endpoints reales por ahora son `/health` y `GET /api/auth/csrf`.
+Antes de modelar clientes, solicitudes y cotizaciones hay que resolver las preguntas
+abiertas del modelo de datos del workspace (`docs/CONTEXTO.md`) con el agente
+`arquitecto`. Las cuentas, roles y sesiones ya existen (ver "Cuentas y acceso").
 
 ## Stack
 
 FastAPI + SQLModel + Alembic + PostgreSQL, gestor `uv`. Contraseñas con `pwdlib` (Argon2id),
-JWT con PyJWT, recuperación con `itsdangerous`, límite con `slowapi`, correo con Jinja2 +
-`httpx2`. La base técnica está lista; aún sin modelos de dominio ni login — se añaden con
-`features/001` (autenticación).
+JWT con PyJWT (con `crypto` para el `id_token` de Google), recuperación y estado de OAuth
+con `itsdangerous`, límite con `slowapi`, correo con Jinja2 + `httpx2`.

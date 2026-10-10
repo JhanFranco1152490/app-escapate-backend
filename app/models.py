@@ -2,4 +2,6 @@
 
 from sqlmodel import SQLModel
 
+import app.accounts.models  # noqa: F401
+
 metadata = SQLModel.metadata

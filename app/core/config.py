@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     email_backend: Literal["console", "resend"] = "console"
     email_from: str = "Escápate <no-responder@example.com>"
     resend_api_key: str = ""
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
+    rate_login: str = "10/minute"
+    rate_google: str = "20/minute"
+    rate_refresh: str = "30/minute"
 
     @field_validator("database_url", "test_database_url")
     @classmethod
