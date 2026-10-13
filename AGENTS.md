@@ -60,9 +60,19 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   └── <dominio>/test_*.py
   ```
 
-  Un dominio nunca importa de la carpeta de otro, salvo `accounts` para la sesión y los
-  permisos; lo que usan dos dominios sube a `common/`. Cada dominio nuevo agrega su
-  `import` en `app/models.py` para que Alembic vea sus tablas.
+  Cada dominio nuevo agrega su `import` en `app/models.py` para que Alembic vea sus tablas.
+- **Dependencias entre dominios en una sola dirección y declaradas.** Un dominio puede
+  importar de otro solo si está en la tabla de abajo, si el otro no importa de él (sin
+  ciclos) y solo de su capa pública: sus `services/` y `models.py` (para claves foráneas y
+  tipos), nunca su `router`. Todos pueden usar de `accounts` la sesión y los permisos
+  (`CurrentUser`, `require_permission`) sin declararlo. Lo que dos dominios comparten sin
+  depender uno del otro sube a `common/`. Cada feature que agrega una dependencia agrega su
+  fila en el mismo PR.
+
+  | Dominio    | Puede importar de |
+  | ---------- | ----------------- |
+  | `accounts` | —                 |
+
 - **Cuentas y acceso (`app/accounts/`):**
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un
     solo `Role`; los permisos del rol en `RolePermission`, como texto validado contra el
@@ -131,8 +141,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
 - **Una responsabilidad por archivo**, ~250 líneas por módulo como referencia: un módulo que
   crece se vuelve paquete (`services/__init__.py` + un archivo por tema) sin cambiar quién lo
   importa.
-- **No duplicar.** La segunda vez que aparece algo se extrae; un dominio nunca importa de la
-  carpeta de otro — si dos lo necesitan, sube a lo común.
+- **No duplicar.** La segunda vez que aparece algo se extrae; lo que dos dominios
+  comparten sin depender uno del otro sube a lo común (las dependencias entre dominios van
+  declaradas, ver "Estructura por dominio").
 - **Dinero en pesos enteros, sin centavos, nunca `float`.** Lo que produce fracciones
   (márgenes, comisiones) se calcula con `Decimal` y se redondea al peso solo con
   `app/common/money.py` (`round_to_peso`, `apply_percentage`).
