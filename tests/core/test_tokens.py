@@ -21,6 +21,12 @@ def test_token_round_trip_keeps_subject_and_jti():
     assert payload["jti"] == "abc"
 
 
+def test_access_token_carries_the_session_id():
+    token = create_token("42", "access", session_id="abc")
+
+    assert decode_token(token, "access")["sid"] == "abc"
+
+
 def test_access_token_has_no_jti():
     assert "jti" not in decode_token(create_token("42", "access"), "access")
 

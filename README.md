@@ -13,8 +13,13 @@ copiado de `.env.example`.
 ```bash
 uv sync
 uv run alembic upgrade head
+uv run python -m app.cli create-admin   # primera cuenta, con el rol Administrador
 uv run uvicorn app.main:app --reload
 ```
+
+Para probar el ingreso con Google en local hace falta un cliente OAuth propio en
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (ver `.env.example`); sin él, todo lo demás
+funciona y el botón de Google responde con error.
 
 Con `DEBUG=true`, la documentación de la API está en <http://localhost:8000/api/docs>.
 

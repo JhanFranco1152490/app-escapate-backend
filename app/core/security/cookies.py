@@ -6,8 +6,10 @@ from app.core.security.tokens import ACCESS_TTL, REFRESH_TTL
 ACCESS_COOKIE = "escapate_access"
 REFRESH_COOKIE = "escapate_refresh"
 CSRF_COOKIE = "escapate_csrf"
+OAUTH_COOKIE = "escapate_oauth"
 _API_PATH = "/api/"
 _AUTH_PATH = "/api/auth/"
+_OAUTH_PATH = "/api/auth/google/"
 
 
 def _flags() -> dict:
@@ -42,3 +44,13 @@ def clear_session_cookies(response: Response) -> None:
 
 def set_csrf_cookie(response: Response, token: str) -> None:
     response.set_cookie(CSRF_COOKIE, token, path=_API_PATH, **_flags())
+
+
+def set_oauth_cookie(response: Response, value: str, max_age: int) -> None:
+    # La vuelta desde Google es una navegación GET de primer nivel: con SameSite=Lax el
+    # navegador sí envía esta cookie al callback.
+    response.set_cookie(OAUTH_COOKIE, value, max_age=max_age, path=_OAUTH_PATH, **_flags())
+
+
+def clear_oauth_cookie(response: Response) -> None:
+    response.delete_cookie(OAUTH_COOKIE, path=_OAUTH_PATH, **_flags())
