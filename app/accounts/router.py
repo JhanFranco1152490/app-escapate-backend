@@ -73,6 +73,10 @@ def login(
 @router.get("/google/start", response_class=RedirectResponse, status_code=302)
 @limiter.limit(lambda: settings.rate_google)
 def google_start(request: Request, next_path: str = Query("/", alias="next")) -> Response:
+    # Sin cliente configurado Google mostraría su propia página de error; se vuelve al login
+    # con el mismo aviso que da el callback.
+    if not settings.google_client_id:
+        return _back_to_login("google_failed")
     state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     verifier, challenge = oauth.new_pkce()
     response = RedirectResponse(

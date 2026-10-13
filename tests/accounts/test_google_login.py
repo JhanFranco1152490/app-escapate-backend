@@ -212,9 +212,26 @@ def test_cancelling_in_google_is_reported_as_cancelled(client, google):
 
 def test_without_google_configuration_the_login_fails_cleanly(client, google, monkeypatch):
     UserAccountFactory(google_sub="google-sub-1")
+    _, state, nonce = start(client)
+    google.id_token = make_id_token(nonce)
     monkeypatch.setattr(settings, "google_client_id", "")
 
-    assert redirect_error(sign_in(client, google)) == "google_failed"
+    response = callback(client, code="codigo-de-google", state=state)
+
+    assert redirect_error(response) == "google_failed"
+
+
+def test_start_without_google_configuration_returns_to_the_login_screen(
+    client, google, monkeypatch
+):
+    monkeypatch.setattr(settings, "google_client_id", "")
+
+    response = client.get("/api/auth/google/start", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"].startswith(f"{settings.frontend_origin}/iniciar-sesion")
+    assert redirect_error(response) == "google_failed"
+    assert "Max-Age=0" in set_cookies(response)[OAUTH_COOKIE]
 
 
 def test_start_is_rate_limited(client, google, monkeypatch):
