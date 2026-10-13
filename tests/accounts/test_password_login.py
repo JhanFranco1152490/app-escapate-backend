@@ -6,6 +6,12 @@ from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlmodel import select
 
 from app.accounts.models import LoginAttempt, LoginEvent, RefreshToken
+from app.accounts.services.password_login import (
+    ANY_IP,
+    FAILURE_WINDOW,
+    MAX_FAILURES,
+    MAX_FAILURES_ANY_IP,
+)
 from app.core.config import settings
 from tests.accounts.helpers import DOCUMENT, login, set_cookies
 from tests.factories import PASSWORD, UserAccountFactory
@@ -20,6 +26,16 @@ INVALID = {
 @pytest.fixture
 def user(session):
     return UserAccountFactory(document_type="CC", document_number=DOCUMENT)
+
+
+def pair_attempt(session) -> LoginAttempt:
+    session.expire_all()
+    return session.exec(select(LoginAttempt).where(LoginAttempt.ip != ANY_IP)).one()
+
+
+def document_attempt(session) -> LoginAttempt:
+    session.expire_all()
+    return session.exec(select(LoginAttempt).where(LoginAttempt.ip == ANY_IP)).one()
 
 
 def test_valid_credentials_open_a_session(csrf_client, session, user):
@@ -178,9 +194,63 @@ def test_the_lock_is_per_ip(csrf_client, user, monkeypatch):
     assert response.status_code == 200
 
 
+def fail_from_many_ips(client, ips: int, per_ip: int):
+    for number in range(ips):
+        fail(client, per_ip, **{"X-Forwarded-For": f"198.51.100.{number + 1}"})
+
+
+def login_from(client, ip: str):
+    return client.post(
+        "/api/auth/login",
+        json={"document_type": "CC", "document_number": DOCUMENT, "password": PASSWORD},
+        headers={"X-Forwarded-For": ip},
+    )
+
+
+def test_failures_from_many_ips_lock_the_document(csrf_client, user, monkeypatch):
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
+    fail_from_many_ips(csrf_client, MAX_FAILURES_ANY_IP // (MAX_FAILURES - 1), MAX_FAILURES - 1)
+
+    response = login_from(csrf_client, "198.51.100.200")
+
+    assert response.status_code == 429
+    assert response.json()["code"] == "account_locked"
+
+
+def test_failures_from_many_ips_below_the_total_do_not_lock(csrf_client, user, monkeypatch):
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
+    fail_from_many_ips(
+        csrf_client, MAX_FAILURES_ANY_IP // (MAX_FAILURES - 1) - 1, MAX_FAILURES - 1
+    )
+
+    assert login_from(csrf_client, "198.51.100.200").status_code == 200
+
+
+def test_a_successful_login_keeps_the_count_across_ips(csrf_client, session, user):
+    fail(csrf_client, 3)
+
+    assert login(csrf_client).status_code == 200
+
+    assert document_attempt(session).failures == 3
+    assert session.exec(select(LoginAttempt).where(LoginAttempt.ip != ANY_IP)).first() is None
+
+
+def test_old_failures_stop_counting(csrf_client, session, user):
+    fail(csrf_client, MAX_FAILURES - 1)
+    for attempt in session.exec(select(LoginAttempt)).all():
+        attempt.updated_at = datetime.now(UTC) - FAILURE_WINDOW - timedelta(seconds=1)
+    session.commit()
+
+    fail(csrf_client, MAX_FAILURES - 1)
+
+    assert pair_attempt(session).failures == MAX_FAILURES - 1
+    assert document_attempt(session).failures == MAX_FAILURES - 1
+    assert login(csrf_client).status_code == 200
+
+
 def test_after_the_lock_expires_the_account_can_log_in(csrf_client, session, user):
     fail(csrf_client, 5)
-    attempt = session.exec(select(LoginAttempt)).one()
+    attempt = pair_attempt(session)
     attempt.locked_until = datetime.now(UTC) - timedelta(seconds=1)
     session.commit()
 
@@ -189,7 +259,7 @@ def test_after_the_lock_expires_the_account_can_log_in(csrf_client, session, use
 
 def test_a_failure_after_an_expired_lock_starts_counting_again(csrf_client, session, user):
     fail(csrf_client, 5)
-    attempt = session.exec(select(LoginAttempt)).one()
+    attempt = pair_attempt(session)
     attempt.locked_until = datetime.now(UTC) - timedelta(seconds=1)
     session.commit()
 
@@ -211,9 +281,9 @@ def test_a_successful_login_resets_the_failures(csrf_client, session, user):
 def test_login_attempt_never_stores_the_document(csrf_client, session, user):
     fail(csrf_client, 1)
 
-    attempt = session.exec(select(LoginAttempt)).one()
-    assert DOCUMENT not in attempt.identifier
-    assert len(attempt.identifier) == 64
+    for attempt in session.exec(select(LoginAttempt)).all():
+        assert DOCUMENT not in attempt.identifier
+        assert len(attempt.identifier) == 64
 
 
 def test_an_outdated_hash_is_replaced_on_login(csrf_client, session):

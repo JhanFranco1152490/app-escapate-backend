@@ -5,7 +5,7 @@ import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, case, delete, func
+from sqlalchemy import and_, case, delete, or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, col, select
 
@@ -17,7 +17,16 @@ from app.core.config import settings
 from app.core.security.passwords import hash_password, verify_password
 
 MAX_FAILURES = 5
+# Tope para un mismo documento sumando todas las IP: quien rota de IP no llega a 5 en
+# ninguna, pero sí a este. Es más alto para que no sirva de forma barata para dejar fuera a
+# una persona escribiendo su documento a propósito.
+MAX_FAILURES_ANY_IP = 20
 LOCK_DURATION = timedelta(minutes=15)
+# Los fallos más viejos que esto dejan de sumar: sin una ventana, unos pocos errores de
+# digitación repartidos en meses acabarían bloqueando la cuenta.
+FAILURE_WINDOW = timedelta(minutes=15)
+# Valor de `ip` de la fila que cuenta los fallos del documento en todas las IP.
+ANY_IP = "*"
 # Sin cuenta (o sin contraseña) se verifica contra este hash, para que la respuesta tarde lo
 # mismo que con una cuenta real y el tiempo no revele qué documentos están registrados.
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
@@ -31,24 +40,26 @@ def lock_identifier(document_type: str, number: str) -> str:
 
 def _is_locked(session: Session, identifier: str, ip: str, now: datetime) -> bool:
     statement = select(LoginAttempt.locked_until).where(
-        LoginAttempt.identifier == identifier, LoginAttempt.ip == ip
+        LoginAttempt.identifier == identifier, col(LoginAttempt.ip).in_([ip, ANY_IP])
     )
-    locked_until = session.exec(statement).first()
-    return locked_until is not None and locked_until > now
+    return any(locked_until and locked_until > now for locked_until in session.exec(statement))
 
 
-def _register_failure(session: Session, identifier: str, ip: str, now: datetime) -> None:
+def _register_failure(
+    session: Session, identifier: str, ip: str, now: datetime, limit: int
+) -> None:
     # Un solo INSERT ... ON CONFLICT: dos intentos simultáneos no pueden contar uno solo.
     table = LoginAttempt.__table__
     lock_expired = and_(table.c.locked_until.isnot(None), table.c.locked_until <= now)
-    failures = case((lock_expired, 1), else_=table.c.failures + 1)
-    statement = insert(table).values(identifier=identifier, ip=ip, failures=1)
+    restarts = or_(lock_expired, table.c.updated_at <= now - FAILURE_WINDOW)
+    failures = case((restarts, 1), else_=table.c.failures + 1)
+    statement = insert(table).values(identifier=identifier, ip=ip, failures=1, updated_at=now)
     statement = statement.on_conflict_do_update(
         index_elements=["identifier", "ip"],
         set_={
             "failures": failures,
-            "locked_until": case((failures >= MAX_FAILURES, now + LOCK_DURATION), else_=None),
-            "updated_at": func.now(),
+            "locked_until": case((failures >= limit, now + LOCK_DURATION), else_=None),
+            "updated_at": now,
         },
     )
     session.exec(statement)
@@ -84,7 +95,8 @@ def login_with_document(
     stored_hash = user.password_hash if user and user.password_hash else None
     valid, new_hash = verify_password(password, stored_hash or _DUMMY_HASH)
     if not (valid and stored_hash):
-        _register_failure(session, identifier, ip, now)
+        _register_failure(session, identifier, ip, now, MAX_FAILURES)
+        _register_failure(session, identifier, ANY_IP, now, MAX_FAILURES_ANY_IP)
         session.commit()
         raise InvalidCredentials()
     # Solo se dice que la cuenta está inactiva a quien ya demostró conocer la contraseña.

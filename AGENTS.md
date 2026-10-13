@@ -72,7 +72,14 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     crea cuentas: solo entra quien el administrador registró, y se vincula por `sub`.
   - La sesión es común a las dos: `services/sessions.py` emite, rota y revoca los refresh
     tokens (máximo 3 sesiones por cuenta), registra cada ingreso en `login_event` (se
-    guardan 90 días) y actualiza `last_activity_at`.
+    guardan 90 días) y actualiza `last_activity_at`. El access token lleva `sid` (el `jti`
+    de su refresh token) y `get_current_user` comprueba en cada petición que esa sesión siga
+    abierta: logout, límite de sesiones o robo lo invalidan al instante. En las pruebas, un
+    cliente autenticado sale de `auth_client` (abre una sesión real); un access token armado
+    a mano con `create_token` sin `session_id` se rechaza.
+  - El bloqueo por intentos fallidos cuenta por pareja documento + IP (5) y, aparte, por
+    documento en todas las IP (20, fila de `login_attempt` con `ip = "*"`); los fallos más
+    viejos que 15 minutos dejan de sumar.
   - Documento y correo se normalizan solo con `app/accounts/identifiers.py`; la política de
     contraseñas vive solo en `app/accounts/passwords.py`.
   - Endpoint protegido: `Depends(require_permission("dominio.accion"))`; la cuenta de la
