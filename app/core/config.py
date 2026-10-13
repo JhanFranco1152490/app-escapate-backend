@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
     rate_login: str = "10/minute"
     rate_google: str = "20/minute"
-    rate_refresh: str = "30/minute"
+    rate_refresh: str = "120/minute"
 
     @field_validator("database_url", "test_database_url")
     @classmethod
