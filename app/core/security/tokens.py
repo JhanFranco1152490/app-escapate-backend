@@ -13,11 +13,18 @@ _ALGORITHM = "HS256"
 _TTL = {"access": ACCESS_TTL, "refresh": REFRESH_TTL}
 
 
-def create_token(subject: str, token_type: TokenType, jti: str | None = None) -> str:
+def create_token(
+    subject: str,
+    token_type: TokenType,
+    jti: str | None = None,
+    session_id: str | None = None,
+) -> str:
     now = datetime.now(UTC)
     payload = {"sub": subject, "type": token_type, "iat": now, "exp": now + _TTL[token_type]}
     if jti:
         payload["jti"] = jti
+    if session_id:
+        payload["sid"] = session_id
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
 
 

@@ -34,7 +34,9 @@ def _issue(session: Session, user: UserAccount, now: datetime) -> TokenPair:
         RefreshToken(jti=jti, user_id=user.id, issued_at=now, expires_at=now + REFRESH_TTL)
     )
     subject = str(user.id)
-    return TokenPair(create_token(subject, "access"), create_token(subject, "refresh", jti=jti))
+    return TokenPair(
+        create_token(subject, "access", session_id=jti), create_token(subject, "refresh", jti=jti)
+    )
 
 
 def _active_tokens(session: Session, user_id: int, now: datetime) -> list[RefreshToken]:
@@ -108,6 +110,19 @@ def rotate(session: Session, refresh: str) -> TokenPair:
     user.last_activity_at = now
     session.commit()
     return pair
+
+
+def is_session_open(session: Session, session_id: str) -> bool:
+    """Si el refresh token al que está atado un access token sigue vigente.
+
+    Uno ya rotado cuenta como abierto: la renovación lo reemplazó pero su access token vive
+    hasta vencer (dos pestañas pueden seguir usándolo unos segundos). Cerrado por logout,
+    límite de sesiones, robo o cuenta desactivada, el access token deja de servir al instante.
+    """
+    token = session.exec(select(RefreshToken).where(RefreshToken.jti == session_id)).first()
+    if token is None:
+        return False
+    return token.revoked_at is None or token.revoke_reason == RevokeReason.ROTATED
 
 
 def revoke(session: Session, refresh: str, reason: RevokeReason) -> None:

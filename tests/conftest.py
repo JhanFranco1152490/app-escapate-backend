@@ -11,12 +11,12 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.engine import make_url  # noqa: E402
 from sqlmodel import Session, create_engine  # noqa: E402
 
-from app.accounts.models import RolePermission  # noqa: E402
+from app.accounts.models import LoginMethod, RolePermission  # noqa: E402
+from app.accounts.services.sessions import open_session  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.db import get_session  # noqa: E402
 from app.core.rate_limit import limiter  # noqa: E402
 from app.core.security.cookies import ACCESS_COOKIE  # noqa: E402
-from app.core.security.tokens import create_token  # noqa: E402
 from app.main import create_app  # noqa: E402
 from tests.database import (  # noqa: E402
     admin_engine,
@@ -106,7 +106,8 @@ def auth_client(client, session):
             )
             user = UserAccountFactory(role=role)
         session.flush()
-        client.cookies.set(ACCESS_COOKIE, create_token(str(user.id), "access"), path="/api/")
+        pair = open_session(session, user, LoginMethod.DOCUMENT, "127.0.0.1")
+        client.cookies.set(ACCESS_COOKIE, pair.access, path="/api/")
         return attach_csrf(client)
 
     return make

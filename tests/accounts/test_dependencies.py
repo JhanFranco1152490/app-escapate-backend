@@ -29,11 +29,6 @@ def client(app, client):
     return client
 
 
-def with_access(client, user):
-    client.cookies.set(ACCESS_COOKIE, create_token(str(user.id), "access"), path="/api/")
-    return client
-
-
 def test_without_cookie_is_not_authenticated(client):
     response = client.get("/api/test/whoami")
 
@@ -58,18 +53,28 @@ def test_a_refresh_token_is_not_an_access_token(client):
     assert client.get("/api/test/whoami").status_code == 401
 
 
-def test_valid_cookie_returns_the_user(client):
+def test_an_access_token_without_a_session_is_rejected(client):
+    user = UserAccountFactory()
+    client.cookies.set(ACCESS_COOKIE, create_token(str(user.id), "access"), path="/api/")
+
+    response = client.get("/api/test/whoami")
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "authentication_failed"
+
+
+def test_valid_cookie_returns_the_user(auth_client):
     user = UserAccountFactory()
 
-    response = with_access(client, user).get("/api/test/whoami")
+    response = auth_client(user=user).get("/api/test/whoami")
 
     assert response.json() == {"id": user.id}
 
 
-def test_deactivated_account_is_rejected_with_a_valid_token(client):
+def test_deactivated_account_is_rejected_with_a_valid_token(auth_client):
     user = UserAccountFactory(is_active=False)
 
-    response = with_access(client, user).get("/api/test/whoami")
+    response = auth_client(user=user).get("/api/test/whoami")
 
     assert response.status_code == 401
     assert response.json()["code"] == "authentication_failed"

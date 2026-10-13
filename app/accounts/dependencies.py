@@ -7,6 +7,7 @@ from sqlmodel import Session
 from app.accounts.models import UserAccount
 from app.accounts.permissions import PERMISSIONS
 from app.accounts.services.access import permissions_of_role
+from app.accounts.services.sessions import is_session_open
 from app.common.errors import AuthenticationFailed, NotAuthenticated, PermissionDenied
 from app.core.db import get_session
 from app.core.security.cookies import ACCESS_COOKIE
@@ -19,11 +20,14 @@ def get_current_user(request: Request, session: SessionDep) -> UserAccount:
     token = request.cookies.get(ACCESS_COOKIE)
     if not token:
         raise NotAuthenticated()
-    subject = decode_token(token, "access")["sub"]
-    # La cuenta y su estado se leen en cada petición: una desactivación aplica de inmediato,
-    # sin esperar a que venza el token.
+    payload = decode_token(token, "access")
+    subject, session_id = payload["sub"], payload.get("sid")
+    # La cuenta y su sesión se leen en cada petición: una desactivación o un cierre de sesión
+    # aplican de inmediato, sin esperar a que venza el token.
     user = session.get(UserAccount, int(subject)) if subject.isdigit() else None
     if user is None or not user.is_active:
+        raise AuthenticationFailed()
+    if not session_id or not is_session_open(session, session_id):
         raise AuthenticationFailed()
     return user
 

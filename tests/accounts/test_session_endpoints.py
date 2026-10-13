@@ -104,6 +104,27 @@ def test_logout_revokes_the_session_and_clears_cookies(logged_in, session, user)
     assert logged_in.post("/api/auth/refresh").status_code == 401
 
 
+def test_logout_also_ends_the_access_token(logged_in):
+    access = logged_in.cookies.get(ACCESS_COOKIE)
+    assert logged_in.get("/api/auth/me").status_code == 200
+
+    logged_in.post("/api/auth/logout")
+    logged_in.cookies.set(ACCESS_COOKIE, access, path="/api/")
+
+    response = logged_in.get("/api/auth/me")
+    assert response.status_code == 401
+    assert response.json()["code"] == "authentication_failed"
+
+
+def test_the_access_token_of_a_rotated_session_stays_valid_until_it_expires(logged_in):
+    access = logged_in.cookies.get(ACCESS_COOKIE)
+    assert logged_in.post("/api/auth/refresh").status_code == 204
+
+    logged_in.cookies.set(ACCESS_COOKIE, access, path="/api/")
+
+    assert logged_in.get("/api/auth/me").status_code == 200
+
+
 def test_logout_without_session_still_succeeds(csrf_client):
     assert csrf_client.post("/api/auth/logout").status_code == 204
 
@@ -117,6 +138,18 @@ def test_a_fourth_login_closes_the_oldest_session(csrf_client, user):
     csrf_client.cookies.set(REFRESH_COOKIE, oldest, path="/api/auth/")
 
     assert csrf_client.post("/api/auth/refresh").status_code == 401
+
+
+def test_a_session_closed_by_the_limit_loses_its_access_token_too(csrf_client, user):
+    login(csrf_client)
+    oldest = csrf_client.cookies.get(ACCESS_COOKIE)
+    for _ in range(3):
+        login(csrf_client)
+    assert csrf_client.get("/api/auth/me").status_code == 200
+
+    csrf_client.cookies.set(ACCESS_COOKIE, oldest, path="/api/")
+
+    assert csrf_client.get("/api/auth/me").status_code == 401
 
 
 def test_auth_errors_are_documented_with_the_common_shape():
