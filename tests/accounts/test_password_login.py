@@ -6,7 +6,7 @@ from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlmodel import select
 
 from app.accounts.models import LoginAttempt, LoginEvent, RefreshToken
-from app.accounts.services.password_login import (
+from app.accounts.services.lockout import (
     ANY_IP,
     FAILURE_WINDOW,
     MAX_FAILURES,
