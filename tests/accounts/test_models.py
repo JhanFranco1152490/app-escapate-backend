@@ -78,3 +78,10 @@ def test_new_accounts_are_active_without_password_or_google(session):
     assert user.is_active is True
     assert user.password_hash is None
     assert user.google_sub is None
+
+
+def test_login_event_accepts_sessions_opened_from_an_email_link(session):
+    user = UserAccountFactory()
+
+    session.add(LoginEvent(user_id=user.id, method="email_link", ip="127.0.0.1"))
+    session.flush()
