@@ -123,6 +123,33 @@ def test_check_rejects_an_invalid_link(csrf_client):
     assert response.json()["code"] == "invalid_reset_token"
 
 
+def test_check_requires_csrf(client, user):
+    response = client.post(
+        "/api/auth/password-reset/check", json={"token": make_token(user, TokenPurpose.RESET)}
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("path", ["check", "confirm"])
+def test_checking_and_confirming_share_the_per_ip_limit_setting(
+    csrf_client, user, monkeypatch, path
+):
+    monkeypatch.setattr(settings, "rate_password_reset_confirm", "2/hour")
+    body = {"token": "garbage"} | (
+        {"password": NEW_PASSWORD, "password_confirmation": NEW_PASSWORD}
+        if path == "confirm"
+        else {}
+    )
+
+    statuses = [
+        csrf_client.post(f"/api/auth/password-reset/{path}", json=body).status_code
+        for _ in range(3)
+    ]
+
+    assert statuses == [400, 400, 429]
+
+
 def test_confirm_sets_the_password_and_signs_in(csrf_client, session, user, sent):
     response = confirm(csrf_client, make_token(user, TokenPurpose.RESET))
 
@@ -130,6 +157,18 @@ def test_confirm_sets_the_password_and_signs_in(csrf_client, session, user, sent
     assert response.json()["id"] == user.id
     assert {ACCESS_COOKIE, REFRESH_COOKIE} <= set(set_cookies(response))
     assert [call["name"] for call in sent] == ["password_changed"]
+
+
+def test_a_failed_change_notice_does_not_change_the_answer(csrf_client, user, monkeypatch):
+    def failing(**kwargs):
+        raise EmailDeliveryError("email delivery failed with status 500")
+
+    monkeypatch.setattr(password_reset, "send_email", failing)
+
+    response = confirm(csrf_client, make_token(user, TokenPurpose.RESET))
+
+    assert response.status_code == 200
+    assert login(csrf_client, password=NEW_PASSWORD).status_code == 200
 
 
 def test_after_a_reset_only_the_new_password_works(csrf_client, user, sent):
