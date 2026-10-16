@@ -17,6 +17,9 @@ uv run python -m app.cli create-admin   # primera cuenta, con el rol Administrad
 uv run uvicorn app.main:app --reload
 ```
 
+Con `EMAIL_BACKEND=console` (el valor local) los correos no se envían: se imprimen en la
+terminal del backend, con el enlace de recuperación o de invitación listo para copiar.
+
 Para probar el ingreso con Google en local hace falta un cliente OAuth propio en
 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (ver `.env.example`); sin él, todo lo demás
 funciona y el botón de Google responde con error.

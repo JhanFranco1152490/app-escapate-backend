@@ -2,15 +2,24 @@ import hmac
 import secrets
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlmodel import Session
 
 from app.accounts.dependencies import CurrentUser, SessionDep
 from app.accounts.models import RevokeReason, UserAccount
-from app.accounts.schemas import LoginRequest, RoleSummary, SessionUser
-from app.accounts.services import google_login, password_login, sessions
+from app.accounts.schemas import (
+    LoginRequest,
+    PasswordResetAccepted,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    ResetTokenCheck,
+    ResetTokenInfo,
+    RoleSummary,
+    SessionUser,
+)
+from app.accounts.services import google_login, password_login, password_reset, sessions
 from app.accounts.services.access import permissions_of_role
 from app.accounts.services.google_login import GoogleLoginError
 from app.common.errors import ErrorResponse, NotAuthenticated
@@ -154,3 +163,46 @@ def logout(request: Request, response: Response, session: SessionDep) -> None:
     if token:
         sessions.revoke(session, token, RevokeReason.LOGOUT)
     clear_session_cookies(response)
+
+
+RESET_ACCEPTED = "Si los datos corresponden a una cuenta, enviamos un enlace a su correo."
+
+
+@router.post("/password-reset", status_code=status.HTTP_202_ACCEPTED, responses=_errors(429))
+@limiter.limit(lambda: settings.rate_password_reset)
+def request_password_reset(
+    request: Request, data: PasswordResetRequest, background: BackgroundTasks, session: SessionDep
+) -> PasswordResetAccepted:
+    email = password_reset.request_reset(session, data.document_type, data.document_number)
+    # En segundo plano: si el correo se enviara antes de responder, la respuesta tardaría más
+    # solo cuando la cuenta existe y el tiempo revelaría qué documentos están registrados.
+    if email:
+        background.add_task(password_reset.deliver, email)
+    return PasswordResetAccepted(detail=RESET_ACCEPTED)
+
+
+@router.post("/password-reset/check", responses=_errors(400, 429))
+@limiter.limit(lambda: settings.rate_password_reset_confirm)
+def check_reset_token(
+    request: Request, data: ResetTokenCheck, session: SessionDep
+) -> ResetTokenInfo:
+    user, purpose = password_reset.check(session, data.token)
+    return ResetTokenInfo(purpose=purpose, full_name=user.full_name)
+
+
+@router.post("/password-reset/confirm", responses=_errors(400, 429))
+@limiter.limit(lambda: settings.rate_password_reset_confirm)
+def confirm_password_reset(
+    request: Request,
+    response: Response,
+    data: PasswordResetConfirm,
+    background: BackgroundTasks,
+    session: SessionDep,
+) -> SessionUser:
+    result = password_reset.confirm(
+        session, data.token, data.password, data.password_confirmation, client_ip(request)
+    )
+    set_session_cookies(response, result.pair.access, result.pair.refresh)
+    if result.notice:
+        background.add_task(password_reset.deliver, result.notice)
+    return _session_user(session, result.user)

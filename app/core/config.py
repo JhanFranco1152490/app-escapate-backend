@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     rate_login: str = "10/minute"
     rate_google: str = "20/minute"
     rate_refresh: str = "120/minute"
+    rate_password_reset: str = "5/hour"
+    rate_password_reset_confirm: str = "20/hour"
 
     @field_validator("database_url", "test_database_url")
     @classmethod

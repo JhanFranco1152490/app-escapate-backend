@@ -27,6 +27,7 @@ class DocumentType(StrEnum):
 class LoginMethod(StrEnum):
     DOCUMENT = "document"
     GOOGLE = "google"
+    EMAIL_LINK = "email_link"
 
 
 class RevokeReason(StrEnum):
@@ -35,6 +36,7 @@ class RevokeReason(StrEnum):
     REUSE_DETECTED = "reuse_detected"
     SESSION_LIMIT = "session_limit"
     ACCOUNT_DISABLED = "account_disabled"
+    PASSWORD_CHANGED = "password_changed"
 
 
 def _in(column: str, enum: type[StrEnum]) -> str:

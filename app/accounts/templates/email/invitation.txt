@@ -1,0 +1,7 @@
+Hola {{ name }},
+
+Te dieron acceso al panel de Escápate. Crea tu contraseña con este enlace:
+
+{{ link }}
+
+El enlace vence en {{ expires_in }}. Después podrás entrar con tu tipo y número de documento y tu contraseña, o con "Continuar con Google" usando este mismo correo.

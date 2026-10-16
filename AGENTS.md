@@ -96,6 +96,13 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     sesión, con `CurrentUser`.
   - Primera cuenta (o respaldo si el único administrador pierde el acceso):
     `uv run python -m app.cli create-admin`.
+  - Crear una contraseña desde un enlace (recuperación, 30 min; invitación, 72 h):
+    `services/reset_tokens.py` firma el token sin guardarlo (deja de valer al cambiar la
+    contraseña o el correo) y `services/password_reset.py` lo usa. Los correos que salen
+    después de responder van como `PendingEmail` en `BackgroundTasks`: nunca se pasa la
+    sesión de base de datos de la petición a una tarea en segundo plano. Otros dominios
+    invitan a alguien con `password_reset.send_invitation(user)`.
+  - El bloqueo por intentos vive solo en `services/lockout.py`.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
