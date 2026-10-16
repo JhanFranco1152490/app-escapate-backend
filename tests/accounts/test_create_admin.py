@@ -8,10 +8,12 @@ from app.core.security.passwords import verify_password
 from tests.factories import UserAccountFactory
 
 DATA = {
-    "full_name": "Dueño de la Agencia",
+    "first_name": "Dueño",
+    "last_name": "de la Agencia",
     "email": " Dueno@Example.com ",
     "document_type": "CC",
     "document_number": "1.090.000.001",
+    "phone": "300 123 4567",
     "password": "una contrasena larga",
 }
 
@@ -37,6 +39,7 @@ def test_creates_an_active_administrator_with_normalized_data(session):
     [
         ("email", "dueno@example.com"),
         ("document_number", "1090000001"),
+        ("phone", "3001234567"),
     ],
 )
 def test_duplicates_fail_without_creating_anything(session, field, value):
@@ -52,10 +55,12 @@ def test_duplicates_fail_without_creating_anything(session, field, value):
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("full_name", "   "),
+        ("first_name", "   "),
+        ("last_name", "   "),
         ("email", "sin-arroba"),
         ("document_type", "NIT"),
         ("document_number", "12"),
+        ("phone", "123"),
         ("password", "corta"),
         ("password", "dueno@example.com"),
     ],
@@ -74,7 +79,8 @@ def answers(*values):
 
 def test_cli_asks_for_the_data_and_creates_the_account(session, monkeypatch, capsys):
     monkeypatch.setattr(
-        "builtins.input", answers("Dueño", "dueno@example.com", "CC", "1090000001")
+        "builtins.input",
+        answers("Dueño", "de la Agencia", "dueno@example.com", "CC", "1090000001", "3001234567"),
     )
     monkeypatch.setattr(cli.getpass, "getpass", answers(DATA["password"], DATA["password"]))
 
@@ -87,7 +93,8 @@ def test_cli_asks_for_the_data_and_creates_the_account(session, monkeypatch, cap
 
 def test_cli_rejects_a_different_confirmation(session, monkeypatch, capsys):
     monkeypatch.setattr(
-        "builtins.input", answers("Dueño", "dueno@example.com", "CC", "1090000001")
+        "builtins.input",
+        answers("Dueño", "de la Agencia", "dueno@example.com", "CC", "1090000001", "3001234567"),
     )
     monkeypatch.setattr(cli.getpass, "getpass", answers(DATA["password"], "otra cosa distinta"))
     before = count_accounts(session)

@@ -24,7 +24,7 @@ def sent(monkeypatch):
 
 @pytest.fixture
 def user(session):
-    return UserAccountFactory(document_number=DOCUMENT, full_name="Laura Rojas")
+    return UserAccountFactory(document_number=DOCUMENT, first_name="Laura", last_name="Rojas")
 
 
 def request_link(client, **overrides):

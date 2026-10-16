@@ -67,7 +67,8 @@ def test_new_accounts_are_active_without_password_or_google(session):
     role = RoleFactory()
     user = UserAccount(
         email="nuevo@example.com",
-        full_name="Persona Nueva",
+        first_name="Persona",
+        last_name="Nueva",
         document_type="CC",
         document_number="10900002",
         role_id=role.id,
