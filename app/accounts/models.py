@@ -37,6 +37,7 @@ class RevokeReason(StrEnum):
     SESSION_LIMIT = "session_limit"
     ACCOUNT_DISABLED = "account_disabled"
     PASSWORD_CHANGED = "password_changed"
+    GOOGLE_UNLINKED = "google_unlinked"
 
 
 def _in(column: str, enum: type[StrEnum]) -> str:
