@@ -115,6 +115,19 @@ class UserAccount(SQLModel, table=True):
             return self.first_name
         return f"{self.first_name} {self.last_name}"
 
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None
+
+    @property
+    def google_linked(self) -> bool:
+        return self.google_sub is not None
+
+    @property
+    def invitation_pending(self) -> bool:
+        """Todavía no ha entrado por ninguna vía: no creó contraseña ni vinculó Google."""
+        return not self.has_password and not self.google_linked
+
 
 class RefreshToken(SQLModel, table=True):
     __tablename__ = "refresh_token"

@@ -1,4 +1,5 @@
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
 from email_validator import EmailNotValidError, validate_email
 from pydantic import (
@@ -19,7 +20,7 @@ from app.accounts.identifiers import (
     normalize_email,
     normalize_phone,
 )
-from app.accounts.models import DocumentType
+from app.accounts.models import DocumentType, LoginMethod
 from app.accounts.services.reset_tokens import TokenPurpose
 
 # Sin recortar, y con tope: un cuerpo enorme obligaría a calcular Argon2 sobre megas.
@@ -134,7 +135,11 @@ class PasswordResetConfirm(ResetTokenCheck):
     password_confirmation: Password
 
 
-class RoleSummary(BaseModel):
+class _Output(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RoleSummary(_Output):
     id: int
     name: str
 
@@ -145,3 +150,36 @@ class SessionUser(BaseModel):
     full_name: str
     role: RoleSummary
     permissions: list[str]
+
+
+class UserFilters(BaseModel):
+    q: Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)] = ""
+    status: Literal["active", "inactive"] | None = None
+    role_id: RecordId | None = None
+
+
+class UserListItem(_Output):
+    id: int
+    first_name: str
+    last_name: str
+    full_name: str
+    email: str
+    role: RoleSummary
+    is_active: bool
+    invitation_pending: bool
+    last_activity_at: datetime | None
+
+
+class UserDetail(UserListItem):
+    document_type: DocumentType
+    document_number: str
+    phone: str | None
+    has_password: bool
+    google_linked: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class LoginEventItem(_Output):
+    created_at: datetime
+    method: LoginMethod
