@@ -102,3 +102,16 @@ def test_cli_rejects_a_different_confirmation(session, monkeypatch, capsys):
     assert cli.main(["create-admin"], session=session) == 1
     assert "no coinciden" in capsys.readouterr().err
     assert count_accounts(session) == before
+
+
+def test_cli_reports_each_invalid_field_with_its_name_and_fails(session, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "builtins.input",
+        answers("Dueño", "de la Agencia", "dueno@example.com", "CC", "1090000001", "123"),
+    )
+    monkeypatch.setattr(cli.getpass, "getpass", answers(DATA["password"], DATA["password"]))
+    before = count_accounts(session)
+
+    assert cli.main(["create-admin"], session=session) == 1
+    assert "Celular: Debe ser un celular colombiano de 10 dígitos." in capsys.readouterr().err
+    assert count_accounts(session) == before
