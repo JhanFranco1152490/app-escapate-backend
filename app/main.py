@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
 from app.accounts.router import router as accounts_router
+from app.accounts.users_router import router as users_router
 from app.common.errors import ErrorResponse, register_error_handlers
 from app.core.config import Settings
 from app.core.config import settings as default_settings
@@ -32,6 +33,7 @@ def create_app(settings: Settings = default_settings) -> FastAPI:
         allow_headers=["Content-Type", CSRF_HEADER],
     )
     app.include_router(accounts_router)
+    app.include_router(users_router)
 
     @app.middleware("http")
     async def no_store(request: Request, call_next):

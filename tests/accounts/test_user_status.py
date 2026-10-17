@@ -12,7 +12,7 @@ from app.accounts.errors import (
     LastUserManager,
     UserInactive,
 )
-from app.accounts.models import LoginEvent, LoginMethod, RefreshToken, Role, UserAccount
+from app.accounts.models import LoginEvent, LoginMethod, RefreshToken, UserAccount
 from app.accounts.services import google_login, user_management
 from app.accounts.services.access import permissions_of_role
 from app.accounts.services.google_login import GoogleLoginError, _find_account
@@ -25,16 +25,6 @@ from app.core.security.tokens import decode_token
 from tests.factories import PASSWORD, UserAccountFactory
 
 IP = "203.0.113.9"
-
-
-@pytest.fixture
-def administrator_role(session):
-    return session.exec(select(Role).where(Role.name == "Administrador")).one()
-
-
-@pytest.fixture
-def advisor_role(session):
-    return session.exec(select(Role).where(Role.name == "Asesor comercial")).one()
 
 
 def revoke_reasons(session, user) -> list[str | None]:

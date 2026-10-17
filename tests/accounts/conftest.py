@@ -1,5 +1,7 @@
 import pytest
+from sqlmodel import select
 
+from app.accounts.models import Role
 from app.accounts.services import password_reset
 from app.common.email import EmailDeliveryError
 
@@ -23,3 +25,13 @@ def email_down(monkeypatch):
         raise EmailDeliveryError(LEAKY_PROVIDER_MESSAGE)
 
     monkeypatch.setattr(password_reset, "send_email", failing)
+
+
+@pytest.fixture
+def administrator_role(session):
+    return session.exec(select(Role).where(Role.name == "Administrador")).one()
+
+
+@pytest.fixture
+def advisor_role(session):
+    return session.exec(select(Role).where(Role.name == "Asesor comercial")).one()

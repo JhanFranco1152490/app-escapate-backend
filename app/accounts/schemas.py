@@ -183,3 +183,9 @@ class UserDetail(UserListItem):
 class LoginEventItem(_Output):
     created_at: datetime
     method: LoginMethod
+
+
+class UserSaved(BaseModel):
+    user: UserDetail
+    # None si no hizo falta enviar la invitación; False si se intentó y el correo falló.
+    invitation_sent: bool | None

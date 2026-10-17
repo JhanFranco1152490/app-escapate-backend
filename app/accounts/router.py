@@ -22,7 +22,7 @@ from app.accounts.schemas import (
 from app.accounts.services import google_login, password_login, password_reset, sessions
 from app.accounts.services.access import permissions_of_role
 from app.accounts.services.google_login import GoogleLoginError
-from app.common.errors import ErrorResponse, NotAuthenticated
+from app.common.errors import NotAuthenticated, error_responses
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.security import oauth
@@ -40,10 +40,6 @@ from app.core.security.network import client_ip
 from app.core.security.redirects import safe_next_path
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-def _errors(*statuses: int) -> dict:
-    return {status_code: {"model": ErrorResponse} for status_code in statuses}
 
 
 class CsrfToken(BaseModel):
@@ -67,7 +63,7 @@ def get_csrf_token(response: Response) -> CsrfToken:
     return CsrfToken(csrf_token=token)
 
 
-@router.post("/login", responses=_errors(401, 403, 429))
+@router.post("/login", responses=error_responses(401, 403, 429))
 @limiter.limit(lambda: settings.rate_login)
 def login(
     request: Request, response: Response, data: LoginRequest, session: SessionDep
@@ -142,12 +138,14 @@ def google_callback(
     return response
 
 
-@router.get("/me", responses=_errors(401))
+@router.get("/me", responses=error_responses(401))
 def me(user: CurrentUser, session: SessionDep) -> SessionUser:
     return _session_user(session, user)
 
 
-@router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT, responses=_errors(401, 429))
+@router.post(
+    "/refresh", status_code=status.HTTP_204_NO_CONTENT, responses=error_responses(401, 429)
+)
 @limiter.limit(lambda: settings.rate_refresh)
 def refresh(request: Request, response: Response, session: SessionDep) -> None:
     token = request.cookies.get(REFRESH_COOKIE)
@@ -168,7 +166,9 @@ def logout(request: Request, response: Response, session: SessionDep) -> None:
 RESET_ACCEPTED = "Si los datos corresponden a una cuenta, enviamos un enlace a su correo."
 
 
-@router.post("/password-reset", status_code=status.HTTP_202_ACCEPTED, responses=_errors(429))
+@router.post(
+    "/password-reset", status_code=status.HTTP_202_ACCEPTED, responses=error_responses(429)
+)
 @limiter.limit(lambda: settings.rate_password_reset)
 def request_password_reset(
     request: Request, data: PasswordResetRequest, background: BackgroundTasks, session: SessionDep
@@ -181,7 +181,7 @@ def request_password_reset(
     return PasswordResetAccepted(detail=RESET_ACCEPTED)
 
 
-@router.post("/password-reset/check", responses=_errors(400, 429))
+@router.post("/password-reset/check", responses=error_responses(400, 429))
 @limiter.limit(lambda: settings.rate_password_reset_confirm)
 def check_reset_token(
     request: Request, data: ResetTokenCheck, session: SessionDep
@@ -190,7 +190,7 @@ def check_reset_token(
     return ResetTokenInfo(purpose=purpose, full_name=user.full_name)
 
 
-@router.post("/password-reset/confirm", responses=_errors(400, 429))
+@router.post("/password-reset/confirm", responses=error_responses(400, 429))
 @limiter.limit(lambda: settings.rate_password_reset_confirm)
 def confirm_password_reset(
     request: Request,
