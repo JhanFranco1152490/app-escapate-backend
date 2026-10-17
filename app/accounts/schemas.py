@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -35,13 +36,21 @@ DOCUMENT_MAX_LENGTH = 30
 PHONE_MAX_LENGTH = 20
 
 
+def _without_control_characters(text: str) -> str:
+    """Un texto escrito por una persona no lleva caracteres de control, y el NUL (0x00) ni
+    siquiera se puede guardar en PostgreSQL: llegaría a la base y fallaría con un 500."""
+    if any(unicodedata.category(character) == "Cc" for character in text):
+        raise PydanticCustomError("invalid_characters", "Contiene caracteres que no se permiten.")
+    return text
+
+
 def _person_name(value: str) -> str:
     name = value.strip()
     if not name:
         raise PydanticCustomError("required", "Este campo es obligatorio.")
     if len(name) > NAME_MAX_LENGTH:
         raise PydanticCustomError("too_long", f"Máximo {NAME_MAX_LENGTH} caracteres.")
-    return name
+    return _without_control_characters(name)
 
 
 def _email(value: str) -> str:
@@ -153,7 +162,11 @@ class SessionUser(BaseModel):
 
 
 class UserFilters(BaseModel):
-    q: Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)] = ""
+    q: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, max_length=100),
+        AfterValidator(_without_control_characters),
+    ] = ""
     status: Literal["active", "inactive"] | None = None
     role_id: RecordId | None = None
 

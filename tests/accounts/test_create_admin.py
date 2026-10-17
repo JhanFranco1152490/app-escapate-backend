@@ -1,8 +1,9 @@
 import pytest
-from sqlmodel import func, select
+from sqlalchemy import delete
+from sqlmodel import col, func, select
 
 from app import cli
-from app.accounts.models import UserAccount
+from app.accounts.models import Role, UserAccount
 from app.accounts.services.admin_setup import ADMIN_ROLE, SetupError, create_admin
 from app.core.security.passwords import verify_password
 from tests.factories import UserAccountFactory
@@ -115,3 +116,12 @@ def test_cli_reports_each_invalid_field_with_its_name_and_fails(session, monkeyp
     assert cli.main(["create-admin"], session=session) == 1
     assert "Celular: Debe ser un celular colombiano de 10 dígitos." in capsys.readouterr().err
     assert count_accounts(session) == before
+
+
+def test_a_missing_administrator_role_asks_to_apply_the_migrations(session):
+    session.exec(delete(Role).where(col(Role.name) == ADMIN_ROLE))
+
+    with pytest.raises(SetupError) as error:
+        create_admin(session, **DATA)
+
+    assert "migraciones" in error.value.messages[0]

@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import func, select
 
 from app.accounts.errors import DuplicateUser, InvalidFields, InvalidResetToken
@@ -280,3 +281,17 @@ def test_a_mail_failure_on_edit_keeps_the_changes(session, email_down):
 
     assert result.invitation_sent is False
     assert session.get(UserAccount, user.id).email == NEW_USER["email"]
+
+
+def test_a_database_error_that_is_not_a_repeated_value_is_not_hidden(session, advisor_role, sent):
+    """Solo se traducen las restricciones únicas conocidas; cualquier otra falla sigue su curso."""
+
+    def unrelated_failure():
+        raise IntegrityError("INSERT", {}, Exception("otra restricción"))
+
+    session.commit = unrelated_failure
+
+    with pytest.raises(IntegrityError):
+        create(session, advisor_role)
+
+    assert sent == []

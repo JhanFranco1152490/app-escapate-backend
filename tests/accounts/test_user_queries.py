@@ -293,3 +293,8 @@ def test_roles_are_listed_by_name_with_the_seeded_ones(session):
     seeded = ["Administrador", "Asesor comercial", "Encargado de proveedores", "Operativo"]
     assert [role.name for role in roles if role.name in seeded] == seeded
     assert {role.id for role in roles} == set(session.exec(select(Role.id)).all())
+
+
+@pytest.mark.parametrize("text", [".", "-", " . - . "])
+def test_a_search_made_only_of_separators_looks_by_name_and_finds_nothing(session, team, text):
+    assert search(session, q=text).count == 0

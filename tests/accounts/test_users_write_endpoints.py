@@ -232,3 +232,15 @@ def test_the_whole_life_of_an_account_from_the_api(auth_client, advisor_role, se
     assert admin.post(f"/api/users/{created['id']}/activate").status_code == 200
     again = login(second_client(app), **credentials)
     assert again.status_code == 200 and again.json()["role"]["id"] == advisor_role.id
+
+
+def test_a_nul_character_in_a_name_is_a_validation_error_not_a_server_error(
+    auth_client, advisor_role, sent
+):
+    client = auth_client(permissions=MANAGE_USERS)
+
+    response = create(client, advisor_role.id, first_name="Ana\x00")
+
+    assert response.status_code == 422
+    assert response.json()["fields"] == {"first_name": ["Contiene caracteres que no se permiten."]}
+    assert sent == []

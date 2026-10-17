@@ -86,3 +86,24 @@ def test_login_event_accepts_sessions_opened_from_an_email_link(session):
 
     session.add(LoginEvent(user_id=user.id, method="email_link", ip="127.0.0.1"))
     session.flush()
+
+
+def test_full_name_joins_first_and_last_name_without_a_trailing_space():
+    assert (
+        UserAccount(first_name="Laura", last_name="Rojas Pérez").full_name == "Laura Rojas Pérez"
+    )
+    # Una cuenta anterior a la separación de nombres puede quedar sin apellidos.
+    assert UserAccount(first_name="Carolina", last_name="").full_name == "Carolina"
+
+
+@pytest.mark.parametrize(
+    "password_hash, google_sub, pending",
+    [(None, None, True), ("hash", None, False), (None, "sub", False), ("hash", "sub", False)],
+)
+def test_an_invitation_is_pending_only_without_password_and_without_google(
+    password_hash, google_sub, pending
+):
+    user = UserAccount(password_hash=password_hash, google_sub=google_sub)
+
+    assert user.invitation_pending is pending
+    assert (user.has_password, user.google_linked) == (password_hash is not None, bool(google_sub))

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.accounts.schemas import UserCreate, UserInput
+from app.accounts.schemas import UserCreate, UserFilters, UserInput
 
 VALID = {
     "first_name": "Laura",
@@ -145,3 +145,15 @@ def test_the_role_id_must_fit_the_database(role_id):
         UserCreate(**VALID | {"role_id": role_id})
 
     assert [item["loc"][-1] for item in error.value.errors()] == ["role_id"]
+
+
+@pytest.mark.parametrize("field", ["first_name", "last_name"])
+@pytest.mark.parametrize("value", ["Ana\x00", "An\na", "A\tna", "\x07Ana"])
+def test_names_cannot_hold_control_characters(field, value):
+    assert errors_of(**{field: value}) == {field: "Contiene caracteres que no se permiten."}
+
+
+def test_the_search_text_cannot_hold_a_nul_character():
+    with pytest.raises(ValidationError):
+        UserFilters(q="ana\x00")
+    assert UserFilters(q="  ana  ").q == "ana"

@@ -202,3 +202,12 @@ def test_the_openapi_describes_the_user_endpoints(app):
     assert "Page_UserListItem_" in str(listing)
     history = schema["paths"]["/api/users/{user_id}/logins"]["get"]["responses"]["200"]
     assert "Page_LoginEventItem_" in str(history)
+
+
+def test_a_nul_character_in_the_search_is_a_validation_error_not_a_server_error(auth_client):
+    client = auth_client(permissions=VIEW_USERS)
+
+    response = client.get("/api/users", params={"q": "ana\x00"})
+
+    assert response.status_code == 422
+    assert "q" in response.json()["fields"]
