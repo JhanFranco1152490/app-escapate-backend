@@ -36,10 +36,15 @@ DOCUMENT_MAX_LENGTH = 30
 PHONE_MAX_LENGTH = 20
 
 
+_FORBIDDEN_CATEGORIES = {"Cc", "Cf"}
+
+
 def _without_control_characters(text: str) -> str:
-    """Un texto escrito por una persona no lleva caracteres de control, y el NUL (0x00) ni
-    siquiera se puede guardar en PostgreSQL: llegaría a la base y fallaría con un 500."""
-    if any(unicodedata.category(character) == "Cc" for character in text):
+    """Un texto escrito por una persona no lleva caracteres de control (categoría Cc) ni de
+    formato invisibles (Cf: ancho cero, cambio de dirección del texto), que permiten que dos
+    nombres idénticos a la vista no lo sean. El NUL (0x00) ni siquiera se puede guardar en
+    PostgreSQL: llegaría a la base y fallaría con un 500."""
+    if any(unicodedata.category(character) in _FORBIDDEN_CATEGORIES for character in text):
         raise PydanticCustomError("invalid_characters", "Contiene caracteres que no se permiten.")
     return text
 

@@ -27,12 +27,14 @@ def upgrade() -> None:
         "user_account", sa.Column("last_name", sqlmodel.sql.sqltypes.AutoString(length=75))
     )
     # full_name no separa nombres de apellidos: se parte por el primer espacio. Un nombre
-    # compuesto ("María José Pérez") queda mal partido y se corrige desde la edición.
+    # compuesto ("María José Pérez") queda mal partido y se corrige desde la edición. Las
+    # columnas nuevas miden la mitad que full_name, así que lo que no cabe se recorta en vez
+    # de abortar la migración.
     op.execute(
         "UPDATE user_account SET "
-        "first_name = split_part(full_name, ' ', 1), "
-        "last_name = CASE WHEN strpos(full_name, ' ') > 0 "
-        "THEN substr(full_name, strpos(full_name, ' ') + 1) ELSE '' END"
+        "first_name = left(split_part(full_name, ' ', 1), 75), "
+        "last_name = left(CASE WHEN strpos(full_name, ' ') > 0 "
+        "THEN substr(full_name, strpos(full_name, ' ') + 1) ELSE '' END, 75)"
     )
     op.alter_column("user_account", "first_name", nullable=False)
     op.alter_column("user_account", "last_name", nullable=False)

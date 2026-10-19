@@ -189,10 +189,10 @@ def test_unlinking_google_returns_the_account_without_the_link(auth_client):
 
 
 def test_the_whole_life_of_an_account_from_the_api(auth_client, advisor_role, sent, app):
-    """Recorre los seis criterios de aceptación con los endpoints reales."""
+    """Recorre la vida completa de una cuenta con los endpoints reales."""
     admin = auth_client(permissions=MANAGE_USERS)
 
-    # CA-01: se registra y recibe la invitación.
+    # Se registra y recibe la invitación.
     created = create(admin, advisor_role.id).json()["user"]
     assert created["is_active"] and len(sent) == 1
 
@@ -208,19 +208,19 @@ def test_the_whole_life_of_an_account_from_the_api(auth_client, advisor_role, se
     assert person.get("/api/auth/me").status_code == 200
     credentials = {"document_number": NEW_USER["document_number"], "password": password}
 
-    # CA-03: el administrador consulta sus datos registrados.
+    # El administrador consulta sus datos registrados.
     detail = admin.get(f"/api/users/{created['id']}").json()
     assert detail["document_number"] == NEW_USER["document_number"]
     assert detail["has_password"] is True
 
-    # CA-04: modifica sus datos y se guardan.
+    # Modifica sus datos y se guardan.
     changed = admin.put(
         f"/api/users/{created['id']}", json=NEW_USER | {"last_name": "Rojas Pérez"}
     )
     assert changed.json()["user"]["full_name"] == "Laura Rojas Pérez"
     assert admin.get(f"/api/users/{created['id']}").json()["last_name"] == "Rojas Pérez"
 
-    # CA-05: se desactiva; no puede seguir con su sesión ni entrar, y nada se borra.
+    # Se desactiva; no puede seguir con su sesión ni entrar, y nada se borra.
     assert admin.post(f"/api/users/{created['id']}/deactivate").status_code == 200
     assert person.get("/api/auth/me").status_code == 401
     refused = login(second_client(app), **credentials)
@@ -228,7 +228,7 @@ def test_the_whole_life_of_an_account_from_the_api(auth_client, advisor_role, se
     assert admin.get(f"/api/users/{created['id']}").json()["first_name"] == "Laura"
     assert admin.get(f"/api/users/{created['id']}/logins").json()["count"] >= 1
 
-    # CA-06: se activa de nuevo y entra con el rol que tenía.
+    # Se activa de nuevo y entra con el rol que tenía.
     assert admin.post(f"/api/users/{created['id']}/activate").status_code == 200
     again = login(second_client(app), **credentials)
     assert again.status_code == 200 and again.json()["role"]["id"] == advisor_role.id

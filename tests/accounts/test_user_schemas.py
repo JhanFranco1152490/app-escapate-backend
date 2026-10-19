@@ -148,7 +148,10 @@ def test_the_role_id_must_fit_the_database(role_id):
 
 
 @pytest.mark.parametrize("field", ["first_name", "last_name"])
-@pytest.mark.parametrize("value", ["Ana\x00", "An\na", "A\tna", "\x07Ana"])
+@pytest.mark.parametrize(
+    "value",
+    ["Ana\x00", "An\na", "A\tna", "\x07Ana", "An\u200ba", "Ana\u202e", "A\u00adna", "\ufeffAna"],
+)
 def test_names_cannot_hold_control_characters(field, value):
     assert errors_of(**{field: value}) == {field: "Contiene caracteres que no se permiten."}
 
