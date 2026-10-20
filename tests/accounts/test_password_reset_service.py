@@ -18,13 +18,6 @@ DOCUMENT = "1090123456"
 IP = "203.0.113.9"
 
 
-@pytest.fixture
-def sent(monkeypatch):
-    calls = []
-    monkeypatch.setattr(password_reset, "send_email", lambda **kwargs: calls.append(kwargs))
-    return calls
-
-
 def failing_provider(**kwargs):
     raise EmailDeliveryError("email delivery failed with status 500")
 

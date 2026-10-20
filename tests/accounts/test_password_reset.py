@@ -16,15 +16,8 @@ ACCEPTED = {"detail": "Si los datos corresponden a una cuenta, enviamos un enlac
 
 
 @pytest.fixture
-def sent(monkeypatch):
-    calls = []
-    monkeypatch.setattr(password_reset, "send_email", lambda **kwargs: calls.append(kwargs))
-    return calls
-
-
-@pytest.fixture
 def user(session):
-    return UserAccountFactory(document_number=DOCUMENT, full_name="Laura Rojas")
+    return UserAccountFactory(document_number=DOCUMENT, first_name="Laura", last_name="Rojas")
 
 
 def request_link(client, **overrides):

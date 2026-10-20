@@ -14,10 +14,12 @@ from app.core.db import engine
 
 
 def _create_admin(session: Session) -> int:
-    full_name = input("Nombre completo: ")
+    first_name = input("Nombres: ")
+    last_name = input("Apellidos: ")
     email = input("Correo (Gmail personal): ")
     document_type = input("Tipo de documento (CC, CE, PPT, PA): ")
     document_number = input("Número de documento: ")
+    phone = input("Celular (10 dígitos): ")
     password = getpass.getpass("Contraseña (mínimo 12 caracteres): ")
     if getpass.getpass("Repite la contraseña: ") != password:
         print("Las contraseñas no coinciden.", file=sys.stderr)
@@ -25,10 +27,12 @@ def _create_admin(session: Session) -> int:
     try:
         user = create_admin(
             session,
-            full_name=full_name,
+            first_name=first_name,
+            last_name=last_name,
             email=email,
             document_type=document_type,
             document_number=document_number,
+            phone=phone,
             password=password,
         )
     except SetupError as error:

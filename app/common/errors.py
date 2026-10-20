@@ -18,6 +18,11 @@ class ErrorResponse(BaseModel):
     fields: dict[str, list[str]] = {}
 
 
+def error_responses(*statuses: int) -> dict:
+    """Los códigos de error que un endpoint puede responder, para su OpenAPI."""
+    return {status_code: {"model": ErrorResponse} for status_code in statuses}
+
+
 class ApiError(Exception):
     status_code = 400
     code = "error"

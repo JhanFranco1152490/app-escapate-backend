@@ -34,9 +34,11 @@ class UserAccountFactory(BaseFactory):
         model = UserAccount
 
     email = factory.Sequence(lambda n: f"persona{n}@example.com")
-    full_name = factory.Sequence(lambda n: f"Persona {n}")
+    first_name = "Persona"
+    last_name = factory.Sequence(lambda n: f"Apellido {n}")
     document_type = "CC"
     document_number = factory.Sequence(lambda n: str(10_000_000 + n))
+    phone = factory.Sequence(lambda n: f"300{n:07d}")
     password_hash = PASSWORD_HASH
     is_active = True
     role = factory.SubFactory(RoleFactory)

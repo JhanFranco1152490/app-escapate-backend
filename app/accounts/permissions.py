@@ -5,4 +5,7 @@ Cada dominio agrega aquí los suyos y, en su migración, los asigna al rol Admin
 al arrancar y no en producción.
 """
 
-PERMISSIONS: dict[str, str] = {}
+PERMISSIONS: dict[str, str] = {
+    "users.view": "Ver usuarios",
+    "users.manage": "Gestionar usuarios",
+}

@@ -1,17 +1,20 @@
 import pytest
-from sqlmodel import func, select
+from sqlalchemy import delete
+from sqlmodel import col, func, select
 
 from app import cli
-from app.accounts.models import UserAccount
+from app.accounts.models import Role, UserAccount
 from app.accounts.services.admin_setup import ADMIN_ROLE, SetupError, create_admin
 from app.core.security.passwords import verify_password
 from tests.factories import UserAccountFactory
 
 DATA = {
-    "full_name": "Dueño de la Agencia",
+    "first_name": "Dueño",
+    "last_name": "de la Agencia",
     "email": " Dueno@Example.com ",
     "document_type": "CC",
     "document_number": "1.090.000.001",
+    "phone": "300 123 4567",
     "password": "una contrasena larga",
 }
 
@@ -37,6 +40,7 @@ def test_creates_an_active_administrator_with_normalized_data(session):
     [
         ("email", "dueno@example.com"),
         ("document_number", "1090000001"),
+        ("phone", "3001234567"),
     ],
 )
 def test_duplicates_fail_without_creating_anything(session, field, value):
@@ -52,10 +56,12 @@ def test_duplicates_fail_without_creating_anything(session, field, value):
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("full_name", "   "),
+        ("first_name", "   "),
+        ("last_name", "   "),
         ("email", "sin-arroba"),
         ("document_type", "NIT"),
         ("document_number", "12"),
+        ("phone", "123"),
         ("password", "corta"),
         ("password", "dueno@example.com"),
     ],
@@ -74,7 +80,8 @@ def answers(*values):
 
 def test_cli_asks_for_the_data_and_creates_the_account(session, monkeypatch, capsys):
     monkeypatch.setattr(
-        "builtins.input", answers("Dueño", "dueno@example.com", "CC", "1090000001")
+        "builtins.input",
+        answers("Dueño", "de la Agencia", "dueno@example.com", "CC", "1090000001", "3001234567"),
     )
     monkeypatch.setattr(cli.getpass, "getpass", answers(DATA["password"], DATA["password"]))
 
@@ -87,7 +94,8 @@ def test_cli_asks_for_the_data_and_creates_the_account(session, monkeypatch, cap
 
 def test_cli_rejects_a_different_confirmation(session, monkeypatch, capsys):
     monkeypatch.setattr(
-        "builtins.input", answers("Dueño", "dueno@example.com", "CC", "1090000001")
+        "builtins.input",
+        answers("Dueño", "de la Agencia", "dueno@example.com", "CC", "1090000001", "3001234567"),
     )
     monkeypatch.setattr(cli.getpass, "getpass", answers(DATA["password"], "otra cosa distinta"))
     before = count_accounts(session)
@@ -95,3 +103,25 @@ def test_cli_rejects_a_different_confirmation(session, monkeypatch, capsys):
     assert cli.main(["create-admin"], session=session) == 1
     assert "no coinciden" in capsys.readouterr().err
     assert count_accounts(session) == before
+
+
+def test_cli_reports_each_invalid_field_with_its_name_and_fails(session, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "builtins.input",
+        answers("Dueño", "de la Agencia", "dueno@example.com", "CC", "1090000001", "123"),
+    )
+    monkeypatch.setattr(cli.getpass, "getpass", answers(DATA["password"], DATA["password"]))
+    before = count_accounts(session)
+
+    assert cli.main(["create-admin"], session=session) == 1
+    assert "Celular: Debe ser un celular colombiano de 10 dígitos." in capsys.readouterr().err
+    assert count_accounts(session) == before
+
+
+def test_a_missing_administrator_role_asks_to_apply_the_migrations(session):
+    session.exec(delete(Role).where(col(Role.name) == ADMIN_ROLE))
+
+    with pytest.raises(SetupError) as error:
+        create_admin(session, **DATA)
+
+    assert "migraciones" in error.value.messages[0]

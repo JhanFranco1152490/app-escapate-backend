@@ -90,12 +90,32 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - El bloqueo por intentos fallidos cuenta por pareja documento + IP (5) y, aparte, por
     documento en todas las IP (20, fila de `login_attempt` con `ip = "*"`); los fallos más
     viejos que 15 minutos dejan de sumar.
-  - Documento y correo se normalizan solo con `app/accounts/identifiers.py`; la política de
-    contraseñas vive solo en `app/accounts/passwords.py`.
+  - Documento, correo y celular se normalizan solo con `app/accounts/identifiers.py`; la
+    política de contraseñas vive solo en `app/accounts/passwords.py`. Los datos de una
+    persona (nombres, apellidos, correo, documento, celular) se validan solo con `UserInput`
+    de `schemas.py`, que usan la API y `create-admin`: cada tipo normaliza y valida en el
+    mismo paso, con mensajes en español. El nombre completo no se guarda: `full_name` es una
+    propiedad de `UserAccount`.
   - Endpoint protegido: `Depends(require_permission("dominio.accion"))`; la cuenta de la
     sesión, con `CurrentUser`.
   - Primera cuenta (o respaldo si el único administrador pierde el acceso):
-    `uv run python -m app.cli create-admin`.
+    `uv run python -m app.cli create-admin` (pide nombres, apellidos, correo, documento,
+    celular y contraseña).
+  - Gestión de usuarios (`users_router.py`, permisos `users.view` y `users.manage`, que la
+    migración asigna al rol Administrador): `services/user_queries.py` lee (lista con
+    búsqueda sin tildes, ficha, ingresos, roles) y `services/user_management.py` escribe
+    (alta, edición, desactivar y activar, reenviar invitación, desvincular Google). Reglas
+    que no se repiten en otro lado:
+    - Nunca se borra un usuario: se desactiva, lo que cierra todas sus sesiones.
+    - Nadie se desactiva a sí mismo y siempre queda al menos una persona activa cuyo rol
+      tenga `users.manage`; la regla bloquea las filas en orden de `id` para que dos
+      desactivaciones simultáneas se esperen y no se bloqueen entre sí.
+    - El correo con la invitación se envía después del `commit()`; si falla, la cuenta
+      queda creada y la respuesta trae `invitation_sent: false`.
+    - Las restricciones únicas de la base (correo, documento, celular) se traducen al mismo
+      error de campo repetido por el nombre de la restricción, nunca por su mensaje, que
+      trae el valor.
+    - La búsqueda usa la extensión `unaccent` de PostgreSQL (la crea la migración).
   - Crear una contraseña desde un enlace (recuperación, 30 min; invitación, 72 h):
     `services/reset_tokens.py` firma el token sin guardarlo (deja de valer al cambiar la
     contraseña o el correo) y `services/password_reset.py` lo usa. Los correos que salen
@@ -170,6 +190,11 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   `app` del fixture.
 - Fábricas en `tests/factories.py` sobre `BaseFactory`. Correos `@example.com`, nunca datos
   personales reales.
+- En `tests/accounts/`: `sent` captura los correos que la aplicación intenta enviar,
+  `email_down` hace fallar al proveedor, `advisor_role` y `administrator_role` son los roles
+  sembrados, y `helpers.py` trae los datos de una persona nueva (`NEW_USER`) y
+  `second_client(app)` para simular otro navegador. Un servicio que pagina se prueba con
+  `fake_request()` de `tests/http.py`.
 - `filterwarnings = ["error"]`: una advertencia rompe la suite; se corrige la causa, no se
   silencia.
 

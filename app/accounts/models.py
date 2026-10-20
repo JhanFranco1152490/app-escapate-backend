@@ -37,6 +37,7 @@ class RevokeReason(StrEnum):
     SESSION_LIMIT = "session_limit"
     ACCOUNT_DISABLED = "account_disabled"
     PASSWORD_CHANGED = "password_changed"
+    GOOGLE_UNLINKED = "google_unlinked"
 
 
 def _in(column: str, enum: type[StrEnum]) -> str:
@@ -87,14 +88,17 @@ class UserAccount(SQLModel, table=True):
     __tablename__ = "user_account"
     __table_args__ = (
         UniqueConstraint("document_type", "document_number", name="uq_user_account_document"),
+        UniqueConstraint("phone", name="uq_user_account_phone"),
         CheckConstraint(_in("document_type", DocumentType), name="ck_user_account_document_type"),
     )
 
     id: int | None = _primary_key()
     email: str = Field(max_length=254, unique=True)
-    full_name: str = Field(max_length=150)
+    first_name: str = Field(max_length=75)
+    last_name: str = Field(max_length=75)
     document_type: str = Field(max_length=3)
     document_number: str = Field(max_length=20)
+    phone: str | None = Field(default=None, max_length=10)
     password_hash: str | None = Field(default=None, max_length=255)
     google_sub: str | None = Field(default=None, max_length=255, unique=True)
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": true()})
@@ -104,6 +108,25 @@ class UserAccount(SQLModel, table=True):
     updated_at: datetime | None = _timestamp(onupdate=func.now())
 
     role: Role = Relationship()
+
+    @property
+    def full_name(self) -> str:
+        if not self.last_name:
+            return self.first_name
+        return f"{self.first_name} {self.last_name}"
+
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None
+
+    @property
+    def google_linked(self) -> bool:
+        return self.google_sub is not None
+
+    @property
+    def invitation_pending(self) -> bool:
+        """Todavía no ha entrado por ninguna vía: no creó contraseña ni vinculó Google."""
+        return not self.has_password and not self.google_linked
 
 
 class RefreshToken(SQLModel, table=True):
