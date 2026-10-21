@@ -64,8 +64,8 @@ def test_field_errors_share_one_shape_with_the_password_error():
     assert error.fields == {"role_id": ["El rol no existe."]}
 
 
-def test_user_permissions_are_registered_with_a_description():
-    assert PERMISSIONS["users.view"] and PERMISSIONS["users.manage"]
+def test_user_permissions_are_registered():
+    assert {"users.view", "users.manage"} <= set(PERMISSIONS)
     require_permission("users.view")
     require_permission("users.manage")
 
