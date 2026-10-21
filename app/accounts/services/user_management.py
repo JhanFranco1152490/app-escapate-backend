@@ -18,19 +18,17 @@ from app.accounts.errors import (
     EmailDeliveryFailed,
     InvalidFields,
     InvitationNotPending,
-    LastUserManager,
     UserInactive,
 )
-from app.accounts.models import RevokeReason, Role, RolePermission, UserAccount
+from app.accounts.models import RevokeReason, Role, UserAccount
 from app.accounts.schemas import UserCreate, UserInput
+from app.accounts.services.manager_guard import ensure_user_managers_remain
 from app.accounts.services.password_reset import send_invitation
 from app.accounts.services.sessions import revoke_all
 from app.common.email import EmailDeliveryError
 from app.common.errors import NotFound
 
 logger = logging.getLogger(__name__)
-
-MANAGE_USERS = "users.manage"
 
 # Restricción única de la base -> campo del formulario. La base responde esto cuando dos altas
 # simultáneas pasan la revisión previa.
@@ -150,20 +148,12 @@ def update_user(session: Session, user_id: int, data: UserInput) -> SaveResult:
 def deactivate_user(session: Session, actor: UserAccount, user_id: int) -> UserAccount:
     if actor.id == user_id:
         raise CannotDeactivateSelf()
-    # Siempre en el mismo orden, para que dos desactivaciones simultáneas se esperen una a
-    # la otra en vez de bloquearse entre sí. La segunda ve, al despertar, quién sigue activo.
-    managers = session.exec(
-        select(UserAccount.id)
-        .join(RolePermission, RolePermission.role_id == UserAccount.role_id)
-        .where(RolePermission.permission == MANAGE_USERS, UserAccount.is_active)
-        .order_by(UserAccount.id)
-        .with_for_update(of=UserAccount)
-    ).all()
+    # Antes de bloquear la cuenta: la regla bloquea primero las filas de los gestores. Si la
+    # cuenta ya está inactiva no es gestora activa, así que la regla no la cuenta.
+    ensure_user_managers_remain(session, leaving={user_id})
     user = _lock(session, user_id)
     if not user.is_active:
         return user
-    if user.id in managers and len(managers) == 1:
-        raise LastUserManager()
 
     user.is_active = False
     revoke_all(session, user.id, RevokeReason.ACCOUNT_DISABLED)
