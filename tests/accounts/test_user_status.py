@@ -13,6 +13,7 @@ from app.accounts.errors import (
     UserInactive,
 )
 from app.accounts.models import LoginEvent, LoginMethod, RefreshToken, UserAccount
+from app.accounts.permissions import PERMISSIONS
 from app.accounts.services import google_login, user_management
 from app.accounts.services.access import permissions_of_role
 from app.accounts.services.google_login import GoogleLoginError, _find_account
@@ -169,7 +170,7 @@ def test_activating_lets_the_person_enter_again_with_their_role_permissions(
 
     entered, _ = login_with_document(session, "CC", "52111222", PASSWORD, IP)
     assert entered.id == user.id
-    assert permissions_of_role(session, entered.role_id) == ["users.manage", "users.view"]
+    assert permissions_of_role(session, entered.role_id) == sorted(PERMISSIONS)
 
 
 def test_activating_an_active_account_changes_nothing(session):

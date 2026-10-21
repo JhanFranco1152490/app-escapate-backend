@@ -9,8 +9,6 @@ from app.accounts.passwords import password_problems
 from app.accounts.schemas import UserInput
 from app.core.security.passwords import hash_password
 
-ADMIN_ROLE = "Administrador"
-
 _LABELS = {
     "first_name": "Nombres",
     "last_name": "Apellidos",
@@ -66,9 +64,10 @@ def create_admin(
     if problems:
         raise SetupError(problems)
 
-    role = session.exec(select(Role).where(Role.name == ADMIN_ROLE)).first()
+    # Por is_protected y no por nombre: el nombre se puede editar y otro rol podría tomarlo.
+    role = session.exec(select(Role).where(Role.is_protected)).first()
     if role is None:
-        raise SetupError([f"No existe el rol {ADMIN_ROLE}. ¿Se aplicaron las migraciones?"])
+        raise SetupError(["No existe el rol Administrador. ¿Se aplicaron las migraciones?"])
     if session.exec(select(UserAccount.id).where(UserAccount.email == data.email)).first():
         raise SetupError(["Ya existe una cuenta con ese correo."])
     duplicate_document = select(UserAccount.id).where(

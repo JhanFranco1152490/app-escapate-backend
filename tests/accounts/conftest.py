@@ -29,7 +29,7 @@ def email_down(monkeypatch):
 
 @pytest.fixture
 def administrator_role(session):
-    return session.exec(select(Role).where(Role.name == "Administrador")).one()
+    return session.exec(select(Role).where(Role.is_protected)).one()
 
 
 @pytest.fixture
