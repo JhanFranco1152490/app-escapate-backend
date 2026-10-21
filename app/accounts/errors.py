@@ -75,3 +75,23 @@ class UserInactive(ApiError):
 class EmailDeliveryFailed(ApiError):
     status_code, code = 502, "email_delivery_failed"
     detail = "No pudimos enviar el correo. Inténtalo de nuevo."
+
+
+class RoleProtected(ApiError):
+    status_code, code = 409, "role_protected"
+    detail = "El rol Administrador no se puede renombrar, borrar ni cambiar sus permisos."
+
+
+class CannotEditOwnRole(ApiError):
+    status_code, code = 409, "cannot_edit_own_role"
+    detail = "No puedes cambiar los permisos del rol que tienes asignado."
+
+
+class RoleInUse(ApiError):
+    status_code, code = 409, "role_in_use"
+    detail = "Este rol tiene usuarios asignados. Cámbiales el rol antes de borrarlo."
+
+
+class CannotChangeOwnRole(ApiError):
+    status_code, code = 409, "cannot_change_own_role"
+    detail = "No puedes cambiar tu propio rol."

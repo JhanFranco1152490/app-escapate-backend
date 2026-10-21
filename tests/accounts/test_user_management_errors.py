@@ -3,13 +3,17 @@ import pytest
 from app.accounts.dependencies import require_permission
 from app.accounts.errors import (
     AccountInactive,
+    CannotChangeOwnRole,
     CannotDeactivateSelf,
+    CannotEditOwnRole,
     DuplicateUser,
     EmailDeliveryFailed,
     InvalidFields,
     InvalidPassword,
     InvitationNotPending,
     LastUserManager,
+    RoleInUse,
+    RoleProtected,
     UserInactive,
 )
 from app.accounts.permissions import PERMISSIONS
@@ -23,6 +27,10 @@ from app.accounts.permissions import PERMISSIONS
         (InvitationNotPending, 409, "invitation_not_pending"),
         (UserInactive, 409, "user_inactive"),
         (EmailDeliveryFailed, 502, "email_delivery_failed"),
+        (RoleProtected, 409, "role_protected"),
+        (CannotEditOwnRole, 409, "cannot_edit_own_role"),
+        (RoleInUse, 409, "role_in_use"),
+        (CannotChangeOwnRole, 409, "cannot_change_own_role"),
     ],
 )
 def test_each_error_has_its_status_and_code(error, status_code, code):
