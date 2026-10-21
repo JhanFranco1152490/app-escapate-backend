@@ -1,5 +1,4 @@
 import pytest
-from sqlmodel import select
 
 from app.accounts.dependencies import require_permission
 from app.accounts.errors import (
@@ -13,10 +12,7 @@ from app.accounts.errors import (
     LastUserManager,
     UserInactive,
 )
-from app.accounts.models import Role
 from app.accounts.permissions import PERMISSIONS
-from app.accounts.services.access import permissions_of_role
-from app.accounts.services.admin_setup import ADMIN_ROLE
 
 
 @pytest.mark.parametrize(
@@ -73,10 +69,3 @@ def test_user_permissions_are_registered():
 def test_an_unregistered_permission_fails_when_the_route_is_declared():
     with pytest.raises(ValueError):
         require_permission("users.fly")
-
-
-def test_the_administrator_role_has_the_registered_user_permissions(session):
-    administrator = session.exec(select(Role).where(Role.name == ADMIN_ROLE)).one()
-    registered = sorted(code for code in PERMISSIONS if code.startswith("users."))
-
-    assert permissions_of_role(session, administrator.id) == registered

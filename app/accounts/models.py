@@ -11,7 +11,9 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    false,
     func,
+    text,
     true,
 )
 from sqlmodel import Field, Relationship, SQLModel
@@ -68,9 +70,16 @@ def _timestamp(nullable: bool = False, **kwargs):
 
 class Role(SQLModel, table=True):
     __tablename__ = "role"
+    __table_args__ = (
+        # "Operativo" y "operativo" son el mismo rol.
+        Index("uq_role_name_lower", func.lower(text("name")), unique=True),
+    )
 
     id: int | None = _primary_key()
-    name: str = Field(max_length=80, unique=True)
+    name: str = Field(max_length=80)
+    description: str | None = Field(default=None, max_length=200)
+    # El rol Administrador: no se renombra, no se borra y siempre tiene todos los permisos.
+    is_protected: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     created_at: datetime | None = _timestamp()
     updated_at: datetime | None = _timestamp(onupdate=func.now())
 

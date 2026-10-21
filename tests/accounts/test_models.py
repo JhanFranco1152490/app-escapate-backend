@@ -14,6 +14,21 @@ def test_migration_seeds_the_four_roles(session):
     assert SEEDED_ROLES <= names
 
 
+def test_role_names_are_unique_regardless_of_case(session):
+    RoleFactory(name="Ventas")
+
+    with pytest.raises(IntegrityError, match="uq_role_name_lower"):
+        RoleFactory(name="VENTAS")
+
+
+def test_a_new_role_is_not_protected_and_has_no_description(session):
+    role = RoleFactory()
+    session.refresh(role)
+
+    assert role.is_protected is False
+    assert role.description is None
+
+
 def test_email_is_unique(session):
     UserAccountFactory(email="ana@example.com")
 
