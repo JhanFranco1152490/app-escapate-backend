@@ -191,7 +191,8 @@ def test_roles_are_listed_for_the_selector(auth_client):
     assert response.status_code == 200
     names = {role["name"] for role in response.json()}
     assert {"Administrador", "Asesor comercial", "Encargado de proveedores", "Operativo"} <= names
-    assert all(set(role) == {"id", "name"} for role in response.json())
+    # La respuesta creció para la pantalla de roles; el selector y el filtro usan id y nombre.
+    assert all({"id", "name"} <= set(role) for role in response.json())
 
 
 def test_the_openapi_describes_the_user_endpoints(app):
