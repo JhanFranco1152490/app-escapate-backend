@@ -1,25 +1,13 @@
 import threading
-import time
 
-from sqlalchemy import delete, text
+from sqlalchemy import delete
 from sqlmodel import Session, col, select
 
 from app.accounts.errors import LastUserManager
 from app.accounts.models import LoginEvent, RefreshToken, Role, RolePermission, UserAccount
 from app.accounts.services import user_management
+from tests.accounts.helpers import wait_until_blocked
 from tests.factories import UserAccountFactory, use_session
-
-_WAITING_ON_A_LOCK = "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
-
-
-def _wait_until_blocked(engine, waiting: int) -> None:
-    deadline = time.monotonic() + 10
-    with engine.connect() as connection:
-        while time.monotonic() < deadline:
-            if connection.execute(text(_WAITING_ON_A_LOCK)).scalar_one() >= waiting:
-                return
-            time.sleep(0.05)
-    raise AssertionError("las dos desactivaciones nunca quedaron esperando el bloqueo")
 
 
 def _delete_accounts(engine, user_ids: list[int]) -> None:
@@ -68,7 +56,7 @@ def test_two_managers_deactivating_each_other_at_once_cannot_leave_nobody_in_cha
             ).all()
             for thread in threads:
                 thread.start()
-            _wait_until_blocked(engine, waiting=2)
+            wait_until_blocked(engine, waiting=2)
             holder.rollback()
 
         for thread in threads:
