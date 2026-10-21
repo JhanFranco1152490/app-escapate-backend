@@ -50,7 +50,8 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   ├── db.py          engine + get_session
   │   ├── rate_limit.py  limiter de slowapi
   │   └── security/      passwords, tokens (JWT), cookies, csrf, network (client_ip)
-  ├── common/            transversal, sin modelos: errors, pagination, money, dates, email
+  ├── common/            transversal, sin modelos: errors, pagination, money, dates, email,
+  │                      search (folded: texto sin tildes ni mayúsculas en SQL)
   └── <dominio>/         models.py, schemas.py, services.py, router.py, templates/email/
   tests/
   ├── conftest.py        base de prueba, sesión con rollback, app, client, csrf_client
@@ -77,6 +78,17 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un
     solo `Role`; los permisos del rol en `RolePermission`, como texto validado contra el
     registro `app/accounts/permissions.py`.
+  - **Registro de permisos** (`PERMISSIONS`, código → `PermissionInfo`): `section`,
+    `group` y `label` ubican el permiso en la matriz del panel (sección, fila, casilla),
+    `description` es el texto completo, `requires` lista los códigos que deben ir marcados
+    con él ("Gestionar" necesita "Ver") y `help` es un aviso opcional para permisos
+    delicados. El orden del registro es el de la matriz. Al importar el módulo se revisa que
+    cada `requires` exista. Una fila de `role_permission` con un código fuera del registro no
+    autoriza nada ni se muestra.
+  - **Cada dominio nuevo** agrega sus códigos al registro y, en su migración, los asigna al
+    rol protegido (`WHERE is_protected`, nunca por nombre) y propone los de los demás roles
+    sembrados, sin dejar dos roles con el mismo conjunto no vacío. `test_seeded_roles.py`
+    falla si el rol protegido no tiene todo el registro o si dos roles quedan iguales.
   - Dos formas de entrar: tipo y número de documento + contraseña (`POST /api/auth/login`)
     y Google con el Gmail personal (`/api/auth/google/start` y `/callback`). Google nunca
     crea cuentas: solo entra quien el administrador registró, y se vincula por `sub`.
@@ -96,26 +108,56 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     de `schemas.py`, que usan la API y `create-admin`: cada tipo normaliza y valida en el
     mismo paso, con mensajes en español. El nombre completo no se guarda: `full_name` es una
     propiedad de `UserAccount`.
-  - Endpoint protegido: `Depends(require_permission("dominio.accion"))`; la cuenta de la
-    sesión, con `CurrentUser`.
+  - Endpoint protegido: `Depends(require_permission("dominio.accion"))`, o
+    `require_any_permission(...)` si basta con uno de varios; la cuenta de la sesión, con
+    `CurrentUser`. Los permisos se leen de la base en cada petición, nunca del JWT: quitar
+    un permiso a un rol o cambiar el rol de alguien aplica en su siguiente petición, sin
+    cerrar sus sesiones.
   - Primera cuenta (o respaldo si el único administrador pierde el acceso):
     `uv run python -m app.cli create-admin` (pide nombres, apellidos, correo, documento,
-    celular y contraseña).
+    celular y contraseña). La crea con el rol protegido, buscado por `is_protected`.
   - Gestión de usuarios (`users_router.py`, permisos `users.view` y `users.manage`, que la
     migración asigna al rol Administrador): `services/user_queries.py` lee (lista con
-    búsqueda sin tildes, ficha, ingresos, roles) y `services/user_management.py` escribe
-    (alta, edición, desactivar y activar, reenviar invitación, desvincular Google). Reglas
-    que no se repiten en otro lado:
+    búsqueda sin tildes, ficha, ingresos) y `services/user_management.py` escribe (alta,
+    edición, cambio de rol, desactivar y activar, reenviar invitación, desvincular Google).
+    Reglas que no se repiten en otro lado:
     - Nunca se borra un usuario: se desactiva, lo que cierra todas sus sesiones.
-    - Nadie se desactiva a sí mismo y siempre queda al menos una persona activa cuyo rol
-      tenga `users.manage`; la regla bloquea las filas en orden de `id` para que dos
-      desactivaciones simultáneas se esperen y no se bloqueen entre sí.
+    - Nadie se desactiva a sí mismo ni cambia su propio rol.
+    - **Siempre queda al menos una persona activa cuyo rol tenga `users.manage`**: vive solo
+      en `services/manager_guard.py` (`ensure_user_managers_remain`) y la usan desactivar,
+      cambiar el rol de alguien y quitarle `users.manage` a un rol. Bloquea las filas de los
+      gestores en orden de `id`, así que se llama **antes** de bloquear cualquier otra
+      cuenta: dos cambios simultáneos se esperan y no se bloquean entre sí.
+    - Cambiar el rol (`PUT /api/users/{id}/role`) no cierra sesiones. Si el cambio da o
+      quita el rol protegido y la persona está activa, después del `commit()` le llega el
+      correo `role_changed`; si falla, el cambio queda hecho.
     - El correo con la invitación se envía después del `commit()`; si falla, la cuenta
       queda creada y la respuesta trae `invitation_sent: false`.
     - Las restricciones únicas de la base (correo, documento, celular) se traducen al mismo
       error de campo repetido por el nombre de la restricción, nunca por su mensaje, que
       trae el valor.
     - La búsqueda usa la extensión `unaccent` de PostgreSQL (la crea la migración).
+  - Roles (`roles_router.py`, permisos `roles.view` y `roles.manage`):
+    `services/role_queries.py` lee (lista con número de personas, detalle, catálogo de
+    permisos) y `services/role_management.py` escribe (crear, editar, borrar). Reglas que no
+    se repiten en otro lado:
+    - El rol protegido (`is_protected`, hoy Administrador) no se renombra, no se borra y
+      siempre tiene todos los permisos; solo se edita su descripción. Se reconoce por
+      `is_protected`, nunca por nombre.
+    - Sin roles repetidos: el nombre es único sin distinguir mayúsculas (índice
+      `uq_role_name_lower`) y dos roles no tienen el mismo conjunto de permisos, salvo el
+      vacío. Solo se revisa cuando cambian los permisos.
+    - Nadie cambia los permisos de su propio rol. Un rol con personas, activas o inactivas,
+      no se borra.
+    - Crear, editar y borrar roles, y cambiar el rol de alguien, toman primero
+      `lock_role_writes(session)` (`pg_advisory_xact_lock` con una llave fija): la base no
+      puede comparar conjuntos de filas, y sin el bloqueo dos altas simultáneas iguales
+      pasarían las dos. Lo que esas operaciones revisan se lee después del bloqueo.
+    - Toda escritura de `role_management` va dentro de `_database_conflicts`, no solo el
+      `commit()`: un `flush()` automático también puede chocar con un índice único.
+    - `GET /api/roles` acepta `users.view` o `roles.view`; `GET /api/roles/{id}` y
+      `GET /api/permissions`, `roles.view` o `users.manage` (la pantalla de cambiar rol los
+      necesita).
   - Crear una contraseña desde un enlace (recuperación, 30 min; invitación, 72 h):
     `services/reset_tokens.py` firma el token sin guardarlo (deja de valer al cambiar la
     contraseña o el correo) y `services/password_reset.py` lo usa. Los correos que salen
@@ -192,9 +234,10 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   personales reales.
 - En `tests/accounts/`: `sent` captura los correos que la aplicación intenta enviar,
   `email_down` hace fallar al proveedor, `advisor_role` y `administrator_role` son los roles
-  sembrados, y `helpers.py` trae los datos de una persona nueva (`NEW_USER`) y
-  `second_client(app)` para simular otro navegador. Un servicio que pagina se prueba con
-  `fake_request()` de `tests/http.py`.
+  sembrados (`administrator_role` buscado por `is_protected`), y `helpers.py` trae los datos
+  de una persona nueva (`NEW_USER`), `second_client(app)` para simular otro navegador y
+  `wait_until_blocked(engine, n)` para las pruebas de concurrencia. Un servicio que pagina
+  se prueba con `fake_request()` de `tests/http.py`.
 - `filterwarnings = ["error"]`: una advertencia rompe la suite; se corrige la causa, no se
   silencia.
 

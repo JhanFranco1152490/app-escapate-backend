@@ -12,7 +12,8 @@ Cada operación hace un solo `commit()`.
 """
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import delete, func, text
 from sqlalchemy.exc import IntegrityError
@@ -36,11 +37,14 @@ _ROLE_FOREIGN_KEY = "user_account_role_id_fkey"
 
 
 def lock_role_writes(session: Session) -> None:
-    """Pone en fila, hasta el final de la transacción, las escrituras de roles y los cambios
-    de rol. Sin él, dos altas simultáneas con los mismos permisos pasarían las dos la revisión
-    de repetidos (ninguna ve aún la fila de la otra, y la base no puede comparar conjuntos de
-    filas), y otra petición podría quitarle `users.manage` a un rol mientras se revisa la
-    regla del último gestor. Con un puñado de roles, ponerlas en fila no cuesta nada."""
+    """Pone en fila, hasta el final de la transacción, las escrituras de roles (crear, editar,
+    borrar) y los cambios de rol de las personas.
+
+    Sin él, dos altas simultáneas con los mismos permisos pasarían las dos la revisión de
+    repetidos (ninguna ve aún la fila de la otra, y la base no puede comparar conjuntos de
+    filas), y otra petición podría quitarle `users.manage` a un rol, o borrar el rol que se
+    está asignando, mientras se revisa. Con un puñado de roles, ponerlas en fila no cuesta
+    nada."""
     session.exec(text("SELECT pg_advisory_xact_lock(:key)").bindparams(key=ROLE_WRITES_LOCK))
 
 
@@ -87,9 +91,15 @@ def _check_unique_permissions(
         )
 
 
-def _commit(session: Session) -> None:
+@contextmanager
+def _database_conflicts(session: Session) -> Iterator[None]:
+    """Envuelve todas las escrituras, no solo el `commit()`: un `flush()`, explícito o
+    automático antes de una consulta, también choca con la base.
+
+    La base responde cuando otra petición cambió algo entre la revisión previa y la
+    escritura, y se traduce al mismo error que da esa revisión."""
     try:
-        session.commit()
+        yield
     except IntegrityError as error:
         session.rollback()
         constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
@@ -103,8 +113,7 @@ def _commit(session: Session) -> None:
 
 def _read_role(session: Session, role_id: int) -> Role:
     """El rol leído de nuevo de la base, aunque ya esté en la sesión."""
-    statement = select(Role).where(Role.id == role_id).execution_options(populate_existing=True)
-    role = session.exec(statement).first()
+    role = session.get(Role, role_id, populate_existing=True)
     if role is None:
         raise NotFound()
     return role
@@ -116,11 +125,12 @@ def create_role(session: Session, data: RoleInput) -> RoleDetail:
     _check_unique_name(session, data.name)
     _check_unique_permissions(session, codes)
 
-    role = Role(name=data.name, description=data.description)
-    session.add(role)
-    session.flush()
-    session.add_all(RolePermission(role_id=role.id, permission=code) for code in codes)
-    _commit(session)
+    with _database_conflicts(session):
+        role = Role(name=data.name, description=data.description)
+        session.add(role)
+        session.flush()
+        session.add_all(RolePermission(role_id=role.id, permission=code) for code in codes)
+        session.commit()
     return get_role(session, role.id)
 
 
@@ -146,10 +156,11 @@ def update_role(session: Session, actor: UserAccount, role_id: int, data: RoleIn
         )
         ensure_user_managers_remain(session, leaving=set(session.exec(members).all()))
 
-    role.name, role.description = data.name, data.description
-    if permissions_changed:
-        _replace_permissions(session, role, codes)
-    _commit(session)
+    with _database_conflicts(session):
+        role.name, role.description = data.name, data.description
+        if permissions_changed:
+            _replace_permissions(session, role, codes)
+        session.commit()
     return get_role(session, role.id)
 
 
@@ -170,15 +181,21 @@ def _replace_permissions(session: Session, role: Role, codes: frozenset[str]) ->
     role.updated_at = func.now()
 
 
+def _has_accounts(session: Session, role_id: int) -> bool:
+    """Activas o inactivas: una inactiva conserva su rol para cuando la reactiven."""
+    statement = select(UserAccount.id).where(UserAccount.role_id == role_id).limit(1)
+    return session.exec(statement).first() is not None
+
+
 def delete_role(session: Session, role_id: int) -> None:
+    # En fila con los cambios de rol: nadie asigna este rol mientras se revisa si está en uso.
+    lock_role_writes(session)
     role = _read_role(session, role_id)
     if role.is_protected:
         raise RoleProtected()
-    in_use = select(UserAccount.id).where(UserAccount.role_id == role.id).limit(1)
-    if session.exec(in_use).first() is not None:
+    if _has_accounts(session, role.id):
         raise RoleInUse()
 
-    session.delete(role)
-    # Si alguien le asignó el rol a una persona entre la revisión y el borrado, la llave
-    # foránea responde y se traduce al mismo error.
-    _commit(session)
+    with _database_conflicts(session):
+        session.delete(role)
+        session.commit()

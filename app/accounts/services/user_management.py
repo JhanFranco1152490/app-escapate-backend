@@ -170,12 +170,13 @@ def change_role(session: Session, actor: UserAccount, user_id: int, role_id: int
         raise NotFound()
     if actor.id == user_id:
         raise CannotChangeOwnRole()
-    new_role = session.get(Role, role_id)
+
+    # Mientras dura el cambio nadie borra el rol nuevo ni cambia los permisos de los roles, que
+    # deciden la regla del último gestor. Por eso el rol se lee después del bloqueo.
+    lock_role_writes(session)
+    new_role = session.get(Role, role_id, populate_existing=True)
     if new_role is None:
         raise InvalidFields(fields={"role_id": ["El rol no existe."]})
-
-    # Mientras se revisa la regla del último gestor, nadie cambia los permisos de los roles.
-    lock_role_writes(session)
     session.refresh(user)
     if user.role_id == role_id:
         return user

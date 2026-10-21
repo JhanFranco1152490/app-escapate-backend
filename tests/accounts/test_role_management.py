@@ -324,3 +324,47 @@ def test_the_protected_role_cannot_be_deleted(session, administrator_role):
 def test_deleting_an_unknown_role_is_not_found(session):
     with pytest.raises(NotFound):
         role_management.delete_role(session, 999_999_999)
+
+
+# --- Choques que solo atrapa la base -------------------------------------------------------
+
+
+def test_a_name_taken_after_the_check_is_still_a_field_error(session, monkeypatch):
+    """Otra alta pudo guardar el mismo nombre entre la revisión y el commit: responde el
+    índice único y se traduce al mismo error de campo."""
+    RoleFactory(name="Ventas")
+    monkeypatch.setattr(role_management, "_check_unique_name", lambda *args, **kwargs: None)
+
+    with pytest.raises(InvalidFields) as error:
+        role_management.create_role(session, role_input(name="VENTAS"))
+
+    assert error.value.fields == {"name": ["Ya existe un rol con ese nombre."]}
+    assert error.value.__cause__ is None
+
+
+def test_an_account_given_the_role_after_the_check_stops_the_deletion(session, monkeypatch):
+    """Alguien pudo asignar el rol entre la revisión y el borrado: responde la llave
+    foránea y se traduce al mismo error."""
+    role = RoleFactory()
+    UserAccountFactory(role=role)
+    monkeypatch.setattr(role_management, "_has_accounts", lambda *args: False)
+
+    with pytest.raises(RoleInUse):
+        role_management.delete_role(session, role.id)
+
+
+def test_a_rename_into_a_name_taken_after_the_check_is_still_a_field_error(
+    session, actor, monkeypatch
+):
+    """Al editar, el nombre nuevo choca en el flush automático que precede al reemplazo de
+    permisos, antes del commit."""
+    RoleFactory(name="Ventas")
+    role = RoleFactory(name="Bodega")
+    monkeypatch.setattr(role_management, "_check_unique_name", lambda *args, **kwargs: None)
+
+    with pytest.raises(InvalidFields) as error:
+        role_management.update_role(
+            session, actor, role.id, role_input(name="VENTAS", permissions=["roles.view"])
+        )
+
+    assert error.value.fields == {"name": ["Ya existe un rol con ese nombre."]}
