@@ -15,7 +15,7 @@ from app.accounts.schemas import (
     UserListItem,
     UserSaved,
 )
-from app.accounts.services import user_management, user_queries
+from app.accounts.services import role_queries, user_management, user_queries
 from app.common.errors import error_responses
 from app.common.pagination import Page, PageParams, page_params
 from app.core.config import settings
@@ -114,4 +114,4 @@ def unlink_google(user_id: RecordId, session: SessionDep) -> UserDetail:
 
 @router.get("/roles", dependencies=[can_view], responses=error_responses(401, 403))
 def list_roles(session: SessionDep) -> list[RoleSummary]:
-    return user_queries.list_roles(session)
+    return role_queries.list_roles(session)

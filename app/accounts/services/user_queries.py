@@ -1,15 +1,16 @@
-"""Lecturas de usuarios para la gestión: lista con búsqueda y filtros, ficha, ingresos y roles."""
+"""Lecturas de usuarios para la gestión: lista con búsqueda y filtros, ficha e ingresos."""
 
 from fastapi import Request
-from sqlalchemy import ColumnElement, and_, func, or_
+from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.orm import joinedload
 from sqlmodel import Session, col, select
 
 from app.accounts.identifiers import normalize_document
-from app.accounts.models import LoginEvent, Role, UserAccount
-from app.accounts.schemas import RoleSummary, UserFilters
+from app.accounts.models import LoginEvent, UserAccount
+from app.accounts.schemas import UserFilters
 from app.common.errors import NotFound
 from app.common.pagination import Page, PageParams, paginate
+from app.common.search import folded
 
 # Más palabras que esto no cambian de forma útil el resultado y alargan la consulta.
 MAX_SEARCH_WORDS = 5
@@ -23,18 +24,12 @@ def _escape_like(text: str) -> str:
     )
 
 
-def _folded(expression):
-    """Sin tildes y en minúsculas. Primero se quitan las tildes: pasar a minúsculas una letra
-    acentuada depende de la configuración regional de la base y puede dejarla igual."""
-    return func.lower(func.unaccent(expression))
-
-
 def _search(text: str) -> ColumnElement[bool]:
     full_name = col(UserAccount.first_name) + " " + col(UserAccount.last_name)
     words = text.split()[:MAX_SEARCH_WORDS]
     by_name = and_(
         *(
-            _folded(full_name).like(_folded(f"%{_escape_like(word)}%"), escape=_ESCAPE)
+            folded(full_name).like(folded(f"%{_escape_like(word)}%"), escape=_ESCAPE)
             for word in words
         )
     )
@@ -58,7 +53,7 @@ def list_users(
     if filters.role_id is not None:
         statement = statement.where(UserAccount.role_id == filters.role_id)
     statement = statement.order_by(
-        _folded(UserAccount.first_name), _folded(UserAccount.last_name), UserAccount.id
+        folded(UserAccount.first_name), folded(UserAccount.last_name), UserAccount.id
     )
     return paginate(session, statement, params, request)
 
@@ -78,8 +73,3 @@ def list_logins(session: Session, user_id: int, params: PageParams, request: Req
         .order_by(col(LoginEvent.created_at).desc(), col(LoginEvent.id).desc())
     )
     return paginate(session, statement, params, request)
-
-
-def list_roles(session: Session) -> list[RoleSummary]:
-    roles = session.exec(select(Role).order_by(Role.name)).all()
-    return [RoleSummary.model_validate(role) for role in roles]

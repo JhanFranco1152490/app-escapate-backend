@@ -2,9 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import event
-from sqlmodel import select
 
-from app.accounts.models import LoginEvent, Role
+from app.accounts.models import LoginEvent
 from app.accounts.schemas import LoginEventItem, UserDetail, UserFilters, UserListItem
 from app.accounts.services import user_queries
 from app.common.errors import NotFound
@@ -285,14 +284,6 @@ def test_logins_of_an_unknown_user_raise_not_found(session):
 
     with pytest.raises(NotFound):
         user_queries.list_logins(session, 999_999_999, params, fake_request())
-
-
-def test_roles_are_listed_by_name_with_the_seeded_ones(session):
-    roles = user_queries.list_roles(session)
-
-    seeded = ["Administrador", "Asesor comercial", "Encargado de proveedores", "Operativo"]
-    assert [role.name for role in roles if role.name in seeded] == seeded
-    assert {role.id for role in roles} == set(session.exec(select(Role.id)).all())
 
 
 @pytest.mark.parametrize("text", [".", "-", " . - . "])
