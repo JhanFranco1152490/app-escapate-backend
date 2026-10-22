@@ -20,12 +20,18 @@ class PermissionInfo:
     # Códigos que deben estar marcados junto con este: sin "Ver" no se llega a la pantalla
     # donde están los botones de "Gestionar".
     requires: tuple[str, ...] = ()
+    # Qué incluye el permiso, junto a su casilla: la matriz solo dice "Ver" o "Gestionar".
+    # Todo permiso lo trae; los que equivalen a ser administrador lo advierten al final.
     help: str | None = None
 
 
 PERMISSIONS: dict[str, PermissionInfo] = {
     "users.view": PermissionInfo(
-        section="Administración", group="Usuarios", label="Ver", description="Ver usuarios"
+        section="Administración",
+        group="Usuarios",
+        label="Ver",
+        description="Ver usuarios",
+        help="Ver la lista de usuarios, su ficha y su historial de ingresos.",
     ),
     "users.manage": PermissionInfo(
         section="Administración",
@@ -34,8 +40,9 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         description="Gestionar usuarios",
         requires=("users.view",),
         help=(
-            "Permite crear administradores y cambiar el rol de cualquier persona. "
-            "Dalo solo a quien le confiarías el rol Administrador."
+            "Crear, editar, desactivar y activar usuarios, reenviar invitaciones y cambiar su "
+            "rol. Permite crear administradores y cambiar el rol de cualquier persona. Dalo "
+            "solo a quien le confiarías el rol Administrador."
         ),
     ),
     "roles.view": PermissionInfo(
@@ -43,6 +50,7 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         group="Roles y permisos",
         label="Ver",
         description="Ver roles y permisos",
+        help="Ver los roles y qué permisos tiene cada uno.",
     ),
     "roles.manage": PermissionInfo(
         section="Administración",
@@ -51,8 +59,8 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         description="Gestionar roles y permisos",
         requires=("roles.view",),
         help=(
-            "Permite dar cualquier permiso a cualquier rol. "
-            "Dalo solo a quien le confiarías el rol Administrador."
+            "Crear, editar y borrar roles y cambiar sus permisos. Permite dar cualquier "
+            "permiso a cualquier rol. Dalo solo a quien le confiarías el rol Administrador."
         ),
     ),
 }

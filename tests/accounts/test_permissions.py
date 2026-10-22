@@ -24,10 +24,23 @@ def test_managing_requires_viewing():
     assert PERMISSIONS["roles.view"].requires == ()
 
 
-def test_only_the_administrator_level_permissions_carry_a_warning():
-    with_help = [code for code, info in PERMISSIONS.items() if info.help]
+ADMIN_LEVEL_WARNING = "Dalo solo a quien le confiarías el rol Administrador."
 
-    assert with_help == ["users.manage", "roles.manage"]
+
+def test_every_permission_explains_what_it_allows():
+    # La matriz solo dice "Ver" o "Gestionar": sin la explicación no se sabe qué incluye.
+    without_help = [code for code, info in PERMISSIONS.items() if not info.help]
+
+    assert without_help == []
+
+
+def test_only_the_administrator_level_permissions_carry_the_warning_after_the_explanation():
+    warned = [code for code, info in PERMISSIONS.items() if ADMIN_LEVEL_WARNING in info.help]
+
+    assert warned == ["users.manage", "roles.manage"]
+    for code in warned:
+        explanation, _, _ = PERMISSIONS[code].help.partition("Permite ")
+        assert explanation.strip() and PERMISSIONS[code].help.endswith(ADMIN_LEVEL_WARNING)
 
 
 def test_every_required_code_is_registered():

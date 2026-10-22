@@ -81,8 +81,10 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - **Registro de permisos** (`PERMISSIONS`, código → `PermissionInfo`): `section`,
     `group` y `label` ubican el permiso en la matriz del panel (sección, fila, casilla),
     `description` es el texto completo, `requires` lista los códigos que deben ir marcados
-    con él ("Gestionar" necesita "Ver") y `help` es un aviso opcional para permisos
-    delicados. El orden del registro es el de la matriz. Al importar el módulo se revisa que
+    con él ("Gestionar" necesita "Ver") y `help` explica qué incluye, junto a su casilla.
+    **Todo permiso trae su `help`** (`test_permissions.py` lo vigila); los que equivalen a
+    ser administrador terminan con la advertencia "Dalo solo a quien le confiarías el rol
+    Administrador.". El orden del registro es el de la matriz. Al importar el módulo se revisa que
     cada `requires` exista. Una fila de `role_permission` con un código fuera del registro no
     autoriza nada ni se muestra.
   - **Cada dominio nuevo** agrega sus códigos al registro y, en su migración, los asigna al
