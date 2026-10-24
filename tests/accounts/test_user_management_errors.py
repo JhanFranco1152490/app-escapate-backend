@@ -1,22 +1,22 @@
 import pytest
-from sqlmodel import select
 
 from app.accounts.dependencies import require_permission
 from app.accounts.errors import (
     AccountInactive,
+    CannotChangeOwnRole,
     CannotDeactivateSelf,
+    CannotEditOwnRole,
     DuplicateUser,
     EmailDeliveryFailed,
     InvalidFields,
     InvalidPassword,
     InvitationNotPending,
     LastUserManager,
+    RoleInUse,
+    RoleProtected,
     UserInactive,
 )
-from app.accounts.models import Role
 from app.accounts.permissions import PERMISSIONS
-from app.accounts.services.access import permissions_of_role
-from app.accounts.services.admin_setup import ADMIN_ROLE
 
 
 @pytest.mark.parametrize(
@@ -27,6 +27,10 @@ from app.accounts.services.admin_setup import ADMIN_ROLE
         (InvitationNotPending, 409, "invitation_not_pending"),
         (UserInactive, 409, "user_inactive"),
         (EmailDeliveryFailed, 502, "email_delivery_failed"),
+        (RoleProtected, 409, "role_protected"),
+        (CannotEditOwnRole, 409, "cannot_edit_own_role"),
+        (RoleInUse, 409, "role_in_use"),
+        (CannotChangeOwnRole, 409, "cannot_change_own_role"),
     ],
 )
 def test_each_error_has_its_status_and_code(error, status_code, code):
@@ -64,8 +68,8 @@ def test_field_errors_share_one_shape_with_the_password_error():
     assert error.fields == {"role_id": ["El rol no existe."]}
 
 
-def test_user_permissions_are_registered_with_a_description():
-    assert PERMISSIONS["users.view"] and PERMISSIONS["users.manage"]
+def test_user_permissions_are_registered():
+    assert {"users.view", "users.manage"} <= set(PERMISSIONS)
     require_permission("users.view")
     require_permission("users.manage")
 
@@ -73,10 +77,3 @@ def test_user_permissions_are_registered_with_a_description():
 def test_an_unregistered_permission_fails_when_the_route_is_declared():
     with pytest.raises(ValueError):
         require_permission("users.fly")
-
-
-def test_the_administrator_role_has_the_registered_user_permissions(session):
-    administrator = session.exec(select(Role).where(Role.name == ADMIN_ROLE)).one()
-    registered = sorted(code for code in PERMISSIONS if code.startswith("users."))
-
-    assert permissions_of_role(session, administrator.id) == registered

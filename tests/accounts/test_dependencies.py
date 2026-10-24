@@ -1,30 +1,42 @@
 import pytest
 from fastapi import APIRouter, Depends
 
-from app.accounts.dependencies import CurrentUser, require_permission
-from app.accounts.permissions import PERMISSIONS
+from app.accounts.dependencies import CurrentUser, require_any_permission, require_permission
+from app.accounts.permissions import PERMISSIONS, PermissionInfo
 from app.core.security.cookies import ACCESS_COOKIE
 from app.core.security.tokens import create_token
 from tests.factories import UserAccountFactory
 
-# El registro real está vacío; las pruebas registran un código propio.
-PERMISSIONS.setdefault("tests.view", "Ver la ruta de prueba")
 
-router = APIRouter(prefix="/api/test")
-
-
-@router.get("/whoami")
-def whoami(user: CurrentUser):
-    return {"id": user.id}
-
-
-@router.get("/guarded", dependencies=[Depends(require_permission("tests.view"))])
-def guarded():
-    return {"ok": True}
+def _test_permission(label: str) -> PermissionInfo:
+    return PermissionInfo(
+        section="Pruebas", group="Ruta de prueba", label=label, description=f"{label} la ruta"
+    )
 
 
 @pytest.fixture
-def client(app, client):
+def client(app, client, monkeypatch):
+    # Los códigos de prueba se registran solo durante la prueba, para no ensuciar el registro
+    # real que leen el catálogo y las pruebas de migraciones.
+    monkeypatch.setitem(PERMISSIONS, "tests.view", _test_permission("Ver"))
+    monkeypatch.setitem(PERMISSIONS, "tests.export", _test_permission("Exportar"))
+    router = APIRouter(prefix="/api/test")
+
+    @router.get("/whoami")
+    def whoami(user: CurrentUser):
+        return {"id": user.id}
+
+    @router.get("/guarded", dependencies=[Depends(require_permission("tests.view"))])
+    def guarded():
+        return {"ok": True}
+
+    @router.get(
+        "/either",
+        dependencies=[Depends(require_any_permission("tests.view", "tests.export"))],
+    )
+    def either():
+        return {"ok": True}
+
     app.include_router(router)
     return client
 
@@ -98,3 +110,31 @@ def test_permission_route_without_session_is_not_authenticated(client):
 def test_unregistered_permission_codes_fail_at_import_time():
     with pytest.raises(ValueError):
         require_permission("tests.typo")
+
+
+@pytest.mark.parametrize(
+    "permissions", [["tests.view"], ["tests.export"], ["tests.view", "tests.export"]]
+)
+def test_any_of_the_listed_permissions_passes(auth_client, permissions):
+    assert auth_client(permissions=permissions).get("/api/test/either").status_code == 200
+
+
+def test_none_of_the_listed_permissions_is_denied(auth_client):
+    response = auth_client(permissions=["users.view"]).get("/api/test/either")
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "permission_denied"
+
+
+def test_any_permission_route_without_session_is_not_authenticated(client):
+    assert client.get("/api/test/either").status_code == 401
+
+
+def test_any_permission_rejects_an_unregistered_code_when_declared():
+    with pytest.raises(ValueError, match="tests.typo"):
+        require_any_permission("users.view", "tests.typo")
+
+
+def test_any_permission_needs_at_least_one_code():
+    with pytest.raises(ValueError):
+        require_any_permission()

@@ -36,11 +36,18 @@ CurrentUser = Annotated[UserAccount, Depends(get_current_user)]
 
 
 def require_permission(code: str) -> Callable[..., UserAccount]:
-    if code not in PERMISSIONS:
-        raise ValueError(f"Permiso no registrado: {code}")
+    return require_any_permission(code)
+
+
+def require_any_permission(*codes: str) -> Callable[..., UserAccount]:
+    if not codes:
+        raise ValueError("Se necesita al menos un código de permiso.")
+    unknown = [code for code in codes if code not in PERMISSIONS]
+    if unknown:
+        raise ValueError(f"Permiso no registrado: {', '.join(unknown)}")
 
     def check(user: CurrentUser, session: SessionDep) -> UserAccount:
-        if code not in permissions_of_role(session, user.role_id):
+        if not set(codes) & set(permissions_of_role(session, user.role_id)):
             raise PermissionDenied()
         return user
 

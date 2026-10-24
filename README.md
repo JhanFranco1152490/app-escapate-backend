@@ -13,21 +13,22 @@ copiado de `.env.example`.
 ```bash
 uv sync
 uv run alembic upgrade head
-uv run python -m app.cli create-admin   # primera cuenta, con el rol Administrador
+uv run python -m app.cli create-admin   # primera cuenta, con el rol Administrador (protegido)
 uv run uvicorn app.main:app --reload
 ```
 
 `create-admin` pide nombres, apellidos, correo (Gmail personal), tipo y número de documento,
 celular colombiano de 10 dígitos y contraseña. Las demás personas las registra el
 administrador desde la gestión de usuarios (`/api/users`), y a cada una le llega un correo
-para crear su propia contraseña.
+para crear su propia contraseña. Los roles y lo que autoriza cada uno se gestionan en
+`/api/roles` y `/api/permissions`.
 
 Con `EMAIL_BACKEND=console` (el valor local) los correos no se envían: se imprimen en la
 terminal del backend, con el enlace de recuperación o de invitación listo para copiar.
 
-La búsqueda de usuarios sin tildes usa la extensión `unaccent` de PostgreSQL: la migración
-la crea, así que el rol de la base necesita permiso para `CREATE EXTENSION` (en una base
-local con un rol superusuario ya lo tiene).
+La búsqueda de usuarios y el orden de los roles sin tildes usan la extensión `unaccent` de
+PostgreSQL. La migración la crea; desde PostgreSQL 13 es una extensión confiable, así que
+basta con que el rol sea dueño de la base (no hace falta superusuario).
 
 Para probar el ingreso con Google en local hace falta un cliente OAuth propio en
 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (ver `.env.example`); sin él, todo lo demás

@@ -4,9 +4,9 @@ from sqlmodel import col, func, select
 
 from app import cli
 from app.accounts.models import Role, UserAccount
-from app.accounts.services.admin_setup import ADMIN_ROLE, SetupError, create_admin
+from app.accounts.services.admin_setup import SetupError, create_admin
 from app.core.security.passwords import verify_password
-from tests.factories import UserAccountFactory
+from tests.factories import RoleFactory, UserAccountFactory
 
 DATA = {
     "first_name": "Dueño",
@@ -26,7 +26,7 @@ def count_accounts(session) -> int:
 def test_creates_an_active_administrator_with_normalized_data(session):
     user = create_admin(session, **DATA)
 
-    assert user.role.name == ADMIN_ROLE
+    assert user.role.is_protected
     assert (user.email, user.document_number, user.is_active) == (
         "dueno@example.com",
         "1090000001",
@@ -118,8 +118,18 @@ def test_cli_reports_each_invalid_field_with_its_name_and_fails(session, monkeyp
     assert count_accounts(session) == before
 
 
+def test_the_administrator_role_is_found_as_protected_not_by_name(session, administrator_role):
+    administrator_role.name = "Gerencia"
+    session.flush()
+    RoleFactory(name="Administrador")
+
+    user = create_admin(session, **DATA)
+
+    assert user.role_id == administrator_role.id
+
+
 def test_a_missing_administrator_role_asks_to_apply_the_migrations(session):
-    session.exec(delete(Role).where(col(Role.name) == ADMIN_ROLE))
+    session.exec(delete(Role).where(col(Role.is_protected)))
 
     with pytest.raises(SetupError) as error:
         create_admin(session, **DATA)

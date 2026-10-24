@@ -1,0 +1,5 @@
+Hola, {{ name }}.
+
+Tu rol en el panel de Escápate cambió de {{ old_role }} a {{ new_role }}. Desde ahora verás las secciones que autoriza tu nuevo rol.
+
+Si no esperabas este cambio, avísale al administrador de la agencia.
