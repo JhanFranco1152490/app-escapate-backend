@@ -63,6 +63,36 @@ PERMISSIONS: dict[str, PermissionInfo] = {
             "permiso a cualquier rol. Dalo solo a quien le confiarías el rol Administrador."
         ),
     ),
+    "clients.view": PermissionInfo(
+        section="Comercial",
+        group="Clientes",
+        label="Ver",
+        description="Ver clientes",
+        help="Ver la lista de clientes, buscarlos y consultar su ficha.",
+    ),
+    "clients.manage": PermissionInfo(
+        section="Comercial",
+        group="Clientes",
+        label="Gestionar",
+        description="Gestionar clientes",
+        requires=("clients.view",),
+        help="Registrar clientes y editar sus datos.",
+    ),
+    "travelers.view": PermissionInfo(
+        section="Comercial",
+        group="Viajeros",
+        label="Ver",
+        description="Ver viajeros",
+        help="Ver la lista de viajeros, buscarlos y consultar su ficha.",
+    ),
+    "travelers.manage": PermissionInfo(
+        section="Comercial",
+        group="Viajeros",
+        label="Gestionar",
+        description="Gestionar viajeros",
+        requires=("travelers.view",),
+        help="Registrar viajeros y editar sus datos.",
+    ),
 }
 
 

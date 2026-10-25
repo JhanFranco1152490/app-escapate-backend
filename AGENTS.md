@@ -70,9 +70,10 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   depender uno del otro sube a `common/`. Cada feature que agrega una dependencia agrega su
   fila en el mismo PR.
 
-  | Dominio    | Puede importar de |
-  | ---------- | ----------------- |
-  | `accounts` | —                 |
+  | Dominio    | Puede importar de                                                       |
+  | ---------- | ----------------------------------------------------------------------- |
+  | `accounts` | —                                                                       |
+  | `clients`  | `accounts` (`models.UserAccount`: quién registró y quién autorizó los datos) |
 
 - **Cuentas y acceso (`app/accounts/`):**
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un

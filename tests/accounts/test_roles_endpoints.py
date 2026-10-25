@@ -275,7 +275,13 @@ def test_changing_a_role_from_the_api_applies_to_the_open_session(
     assert response.status_code == 200
     assert response.json()["role"] == {"id": advisor_role.id, "name": "Asesor comercial"}
     me = person.get("/api/auth/me")
-    assert (me.status_code, me.json()["permissions"]) == (200, [])
+    assert me.status_code == 200
+    assert me.json()["permissions"] == [
+        "clients.manage",
+        "clients.view",
+        "travelers.manage",
+        "travelers.view",
+    ]
     assert person.get("/api/users").status_code == 403
     tokens = session.exec(select(RefreshToken).where(RefreshToken.user_id == user.id)).all()
     assert all(token.revoked_at is None for token in tokens)
