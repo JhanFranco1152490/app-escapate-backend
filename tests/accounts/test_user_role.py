@@ -3,11 +3,11 @@ import logging
 import pytest
 from sqlmodel import select
 
-from app.accounts.errors import CannotChangeOwnRole, InvalidFields, LastUserManager
+from app.accounts.errors import CannotChangeOwnRole, LastUserManager
 from app.accounts.models import LoginMethod, RefreshToken, UserAccount
 from app.accounts.services import user_management
 from app.accounts.services.sessions import open_session
-from app.common.errors import NotFound
+from app.common.errors import InvalidFields, NotFound
 from tests.accounts.conftest import LEAKY_PROVIDER_MESSAGE
 from tests.factories import RoleFactory, UserAccountFactory
 

@@ -1,4 +1,4 @@
-from app.accounts.identifiers import normalize_document, normalize_email
+from app.common.identifiers import normalize_document, normalize_email
 
 MIN_LENGTH = 12
 MAX_LENGTH = 256

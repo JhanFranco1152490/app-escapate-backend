@@ -8,7 +8,6 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 from app.accounts.errors import InvalidPassword
-from app.accounts.identifiers import normalize_document
 from app.accounts.models import LoginMethod, RevokeReason, UserAccount
 from app.accounts.passwords import password_problems
 from app.accounts.services import lockout
@@ -17,6 +16,7 @@ from app.accounts.services.reset_tokens import LIFETIMES, TokenPurpose, make_tok
 from app.accounts.services.sessions import TokenPair, open_session, revoke_all
 from app.common.dates import BOGOTA
 from app.common.email import EmailDeliveryError, send_email
+from app.common.identifiers import normalize_document
 from app.core.config import settings
 from app.core.security.passwords import hash_password
 

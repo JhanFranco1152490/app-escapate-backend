@@ -6,9 +6,10 @@ from app.accounts.dependencies import (
     require_any_permission,
     require_permission,
 )
-from app.accounts.schemas import PermissionItem, RecordId, RoleDetail, RoleInput, RoleListItem
+from app.accounts.schemas import PermissionItem, RoleDetail, RoleInput, RoleListItem
 from app.accounts.services import role_management, role_queries
 from app.common.errors import error_responses
+from app.common.fields import RecordId
 
 router = APIRouter(prefix="/api", tags=["roles"])
 

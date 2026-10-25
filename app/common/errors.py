@@ -50,6 +50,13 @@ class NotFound(ApiError):
     status_code, code, detail = 404, "not_found", "No encontramos lo que buscas."
 
 
+class InvalidFields(ApiError):
+    """Datos que no se pueden guardar; `fields` dice cuáles y por qué."""
+
+    status_code, code = 422, "validation_error"
+    detail = "Revisa los datos enviados."
+
+
 class StaleVersion(ApiError):
     status_code, code = 409, "stale_version"
     detail = "Alguien más guardó cambios. Recarga para ver la versión actual."

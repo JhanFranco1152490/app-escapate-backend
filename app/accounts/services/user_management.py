@@ -17,7 +17,6 @@ from app.accounts.errors import (
     CannotDeactivateSelf,
     DuplicateUser,
     EmailDeliveryFailed,
-    InvalidFields,
     InvitationNotPending,
     UserInactive,
 )
@@ -29,7 +28,7 @@ from app.accounts.services.role_management import lock_role_writes
 from app.accounts.services.role_queries import registered_permissions_of
 from app.accounts.services.sessions import revoke_all
 from app.common.email import EmailDeliveryError
-from app.common.errors import NotFound
+from app.common.errors import InvalidFields, NotFound
 
 logger = logging.getLogger(__name__)
 

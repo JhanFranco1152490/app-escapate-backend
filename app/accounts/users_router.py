@@ -6,7 +6,6 @@ from app.accounts.dependencies import SessionDep, require_permission
 from app.accounts.models import UserAccount
 from app.accounts.schemas import (
     LoginEventItem,
-    RecordId,
     UserCreate,
     UserDetail,
     UserFilters,
@@ -17,6 +16,7 @@ from app.accounts.schemas import (
 )
 from app.accounts.services import user_management, user_queries
 from app.common.errors import error_responses
+from app.common.fields import RecordId
 from app.common.pagination import Page, PageParams, page_params
 from app.core.config import settings
 from app.core.rate_limit import limiter

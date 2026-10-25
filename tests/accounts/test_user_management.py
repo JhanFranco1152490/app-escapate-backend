@@ -4,14 +4,14 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import func, select
 
-from app.accounts.errors import DuplicateUser, InvalidFields, InvalidResetToken
+from app.accounts.errors import DuplicateUser, InvalidResetToken
 from app.accounts.models import LoginMethod, RefreshToken, UserAccount
 from app.accounts.schemas import UserCreate, UserInput
 from app.accounts.services import user_management
 from app.accounts.services.password_login import find_by_document
 from app.accounts.services.reset_tokens import TokenPurpose, make_token, read_token
 from app.accounts.services.sessions import open_session
-from app.common.errors import NotFound
+from app.common.errors import InvalidFields, NotFound
 from tests.accounts.conftest import LEAKY_PROVIDER_MESSAGE
 from tests.accounts.helpers import NEW_USER
 from tests.factories import UserAccountFactory

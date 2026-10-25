@@ -5,10 +5,10 @@ from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.orm import joinedload
 from sqlmodel import Session, col, select
 
-from app.accounts.identifiers import normalize_document
 from app.accounts.models import LoginEvent, UserAccount
 from app.accounts.schemas import UserFilters
 from app.common.errors import NotFound
+from app.common.identifiers import normalize_document
 from app.common.pagination import Page, PageParams, paginate
 from app.common.search import folded
 

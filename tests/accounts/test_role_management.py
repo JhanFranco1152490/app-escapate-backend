@@ -3,7 +3,6 @@ from sqlmodel import select
 
 from app.accounts.errors import (
     CannotEditOwnRole,
-    InvalidFields,
     LastUserManager,
     RoleInUse,
     RoleProtected,
@@ -13,7 +12,7 @@ from app.accounts.permissions import PERMISSIONS
 from app.accounts.schemas import RoleInput
 from app.accounts.services import role_management
 from app.accounts.services.role_queries import registered_permissions_of
-from app.common.errors import NotFound
+from app.common.errors import InvalidFields, NotFound
 from tests.factories import RoleFactory, UserAccountFactory
 
 

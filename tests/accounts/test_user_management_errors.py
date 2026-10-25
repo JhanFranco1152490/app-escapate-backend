@@ -8,7 +8,6 @@ from app.accounts.errors import (
     CannotEditOwnRole,
     DuplicateUser,
     EmailDeliveryFailed,
-    InvalidFields,
     InvalidPassword,
     InvitationNotPending,
     LastUserManager,
@@ -17,6 +16,7 @@ from app.accounts.errors import (
     UserInactive,
 )
 from app.accounts.permissions import PERMISSIONS
+from app.common.errors import InvalidFields
 
 
 @pytest.mark.parametrize(

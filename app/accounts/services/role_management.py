@@ -19,13 +19,13 @@ from sqlalchemy import delete, func, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
-from app.accounts.errors import CannotEditOwnRole, InvalidFields, RoleInUse, RoleProtected
+from app.accounts.errors import CannotEditOwnRole, RoleInUse, RoleProtected
 from app.accounts.models import Role, RolePermission, UserAccount
 from app.accounts.permissions import PERMISSIONS
 from app.accounts.schemas import RoleDetail, RoleInput
 from app.accounts.services.manager_guard import MANAGE_USERS, ensure_user_managers_remain
 from app.accounts.services.role_queries import get_role, registered_permissions_of
-from app.common.errors import NotFound
+from app.common.errors import InvalidFields, NotFound
 
 # Llave fija del bloqueo de asesoría que pone en fila las escrituras de roles. Cualquier
 # número sirve mientras ningún otro bloqueo de asesoría de la aplicación use el mismo.
