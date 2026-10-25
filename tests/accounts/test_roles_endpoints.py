@@ -1,12 +1,10 @@
 import pytest
 from sqlmodel import select
 
-from app.accounts.models import LoginMethod, RefreshToken, RolePermission
+from app.accounts.models import RefreshToken, RolePermission
 from app.accounts.permissions import PERMISSIONS
-from app.accounts.services.sessions import open_session
-from app.core.security.cookies import ACCESS_COOKIE
 from app.core.security.csrf import CSRF_HEADER
-from tests.accounts.helpers import second_client
+from tests.accounts.helpers import signed_in
 from tests.factories import RoleFactory, UserAccountFactory
 
 VIEW_ROLES = ["roles.view"]
@@ -28,14 +26,6 @@ WRITE_ENDPOINTS = [
 def grant(session, role, *codes):
     session.add_all(RolePermission(role_id=role.id, permission=code) for code in codes)
     session.flush()
-
-
-def signed_in(app, session, user):
-    """Otro navegador con la sesión abierta de `user`."""
-    browser = second_client(app)
-    pair = open_session(session, user, LoginMethod.DOCUMENT, "127.0.0.1")
-    browser.cookies.set(ACCESS_COOKIE, pair.access, path="/api/")
-    return browser
 
 
 def body(name="Ventas", description=None, permissions=()):

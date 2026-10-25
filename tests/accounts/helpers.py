@@ -1,5 +1,8 @@
 from fastapi.testclient import TestClient
 
+from app.accounts.models import LoginMethod
+from app.accounts.services.sessions import open_session
+from app.core.security.cookies import ACCESS_COOKIE
 from tests.factories import PASSWORD
 from tests.http import attach_csrf
 
@@ -34,3 +37,11 @@ def second_client(app) -> TestClient:
     """Otro navegador: sus cookies no se mezclan con las del cliente de la prueba."""
     other = TestClient(app, base_url="https://testserver", raise_server_exceptions=False)
     return attach_csrf(other)
+
+
+def signed_in(app, session, user):
+    """Otro navegador con la sesión abierta de `user`."""
+    browser = second_client(app)
+    pair = open_session(session, user, LoginMethod.DOCUMENT, "127.0.0.1")
+    browser.cookies.set(ACCESS_COOKIE, pair.access, path="/api/")
+    return browser
