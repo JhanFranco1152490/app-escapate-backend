@@ -4,7 +4,6 @@ from typing import Annotated, Literal
 from pydantic import (
     AfterValidator,
     BaseModel,
-    ConfigDict,
     Field,
     StringConstraints,
     ValidationInfo,
@@ -24,6 +23,8 @@ from app.common.fields import (
     without_control_characters,
 )
 from app.common.identifiers import is_valid_document, normalize_document
+from app.common.schemas import InputSchema as _Input
+from app.common.schemas import OutputSchema as _Output
 
 # Sin recortar, y con tope: un cuerpo enorme obligaría a calcular Argon2 sobre megas.
 Password = Annotated[str, Field(min_length=1, max_length=256)]
@@ -45,10 +46,6 @@ def _phone(value: str) -> str:
 
 # Normaliza y valida en el mismo paso, como los tipos de app.common.fields.
 Phone = Annotated[str, AfterValidator(_phone)]
-
-
-class _Input(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 class DocumentInput(_Input):
@@ -125,10 +122,6 @@ class ResetTokenInfo(BaseModel):
 class PasswordResetConfirm(ResetTokenCheck):
     password: Password
     password_confirmation: Password
-
-
-class _Output(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
 
 
 class RoleSummary(_Output):
