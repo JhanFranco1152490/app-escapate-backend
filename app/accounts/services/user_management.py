@@ -9,7 +9,6 @@ import logging
 from dataclasses import dataclass
 
 from sqlalchemy import and_, or_
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.accounts.errors import (
@@ -27,6 +26,7 @@ from app.accounts.services.password_reset import PendingEmail, deliver, send_inv
 from app.accounts.services.role_management import lock_role_writes
 from app.accounts.services.role_queries import registered_permissions_of
 from app.accounts.services.sessions import revoke_all
+from app.common.database import database_conflicts
 from app.common.email import EmailDeliveryError
 from app.common.errors import InvalidFields, NotFound
 
@@ -38,6 +38,10 @@ _UNIQUE_FIELDS = {
     "user_account_email_key": "email",
     "uq_user_account_document": "document_number",
     "uq_user_account_phone": "phone",
+}
+_UNIQUE_ERRORS = {
+    constraint: (lambda field=field: DuplicateUser([field]))
+    for constraint, field in _UNIQUE_FIELDS.items()
 }
 
 
@@ -78,15 +82,8 @@ def _duplicate_fields(
 
 
 def _commit(session: Session) -> None:
-    try:
+    with database_conflicts(session, _UNIQUE_ERRORS):
         session.commit()
-    except IntegrityError as error:
-        session.rollback()
-        constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
-        if constraint in _UNIQUE_FIELDS:
-            # Sin encadenar el error original: su mensaje trae el valor repetido.
-            raise DuplicateUser([_UNIQUE_FIELDS[constraint]]) from None
-        raise
 
 
 def _lock(session: Session, user_id: int) -> UserAccount:

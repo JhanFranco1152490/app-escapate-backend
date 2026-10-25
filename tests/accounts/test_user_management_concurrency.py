@@ -6,7 +6,7 @@ from sqlmodel import Session, col, select
 from app.accounts.errors import LastUserManager
 from app.accounts.models import LoginEvent, RefreshToken, Role, RolePermission, UserAccount
 from app.accounts.services import user_management
-from tests.accounts.helpers import wait_until_blocked
+from tests.concurrency import wait_until_blocked
 from tests.factories import UserAccountFactory, use_session
 
 

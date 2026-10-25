@@ -7,7 +7,7 @@ from app.accounts.models import Role
 from app.accounts.schemas import RoleInput
 from app.accounts.services import role_management
 from app.common.errors import InvalidFields
-from tests.accounts.helpers import wait_until_blocked
+from tests.concurrency import wait_until_blocked
 
 NAMES = ["Concurrencia uno", "Concurrencia dos"]
 

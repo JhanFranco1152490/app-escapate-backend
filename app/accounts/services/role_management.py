@@ -12,11 +12,9 @@ Cada operación hace un solo `commit()`.
 """
 
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
-from contextlib import contextmanager
+from collections.abc import Iterable
 
 from sqlalchemy import delete, func, text
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from app.accounts.errors import CannotEditOwnRole, RoleInUse, RoleProtected
@@ -25,6 +23,7 @@ from app.accounts.permissions import PERMISSIONS
 from app.accounts.schemas import RoleDetail, RoleInput
 from app.accounts.services.manager_guard import MANAGE_USERS, ensure_user_managers_remain
 from app.accounts.services.role_queries import get_role, registered_permissions_of
+from app.common.database import database_conflicts
 from app.common.errors import InvalidFields, NotFound
 
 # Llave fija del bloqueo de asesoría que pone en fila las escrituras de roles. Cualquier
@@ -91,24 +90,14 @@ def _check_unique_permissions(
         )
 
 
-@contextmanager
-def _database_conflicts(session: Session) -> Iterator[None]:
-    """Envuelve todas las escrituras, no solo el `commit()`: un `flush()`, explícito o
-    automático antes de una consulta, también choca con la base.
+_CONFLICTS = {
+    _NAME_UNIQUE_INDEX: lambda: InvalidFields(fields={"name": [_NAME_TAKEN]}),
+    _ROLE_FOREIGN_KEY: RoleInUse,
+}
 
-    La base responde cuando otra petición cambió algo entre la revisión previa y la
-    escritura, y se traduce al mismo error que da esa revisión."""
-    try:
-        yield
-    except IntegrityError as error:
-        session.rollback()
-        constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
-        # Sin encadenar el error original: su mensaje trae el valor repetido.
-        if constraint == _NAME_UNIQUE_INDEX:
-            raise InvalidFields(fields={"name": [_NAME_TAKEN]}) from None
-        if constraint == _ROLE_FOREIGN_KEY:
-            raise RoleInUse() from None
-        raise
+
+def _database_conflicts(session: Session):
+    return database_conflicts(session, _CONFLICTS)
 
 
 def _read_role(session: Session, role_id: int) -> Role:
