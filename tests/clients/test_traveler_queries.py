@@ -72,6 +72,7 @@ def test_the_list_is_ordered_by_names_without_accents(session, travelers):
         pytest.param("at88", ["Helena Rincón Soto"], id="passport-in-lowercase"),
         pytest.param("2213", [], id="middle-of-the-document"),
         pytest.param("%", [], id="wildcard"),
+        pytest.param("- . -", [], id="only-separators"),
     ],
 )
 def test_searching_by_name_or_document(session, travelers, q, expected):

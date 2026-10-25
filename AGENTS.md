@@ -50,14 +50,24 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   ├── db.py          engine + get_session
   │   ├── rate_limit.py  limiter de slowapi
   │   └── security/      passwords, tokens (JWT), cookies, csrf, network (client_ip)
-  ├── common/            transversal, sin modelos: errors, pagination, money, dates, email,
-  │                      search (folded: texto sin tildes ni mayúsculas en SQL)
-  └── <dominio>/         models.py, schemas.py, services.py, router.py, templates/email/
+  ├── common/            transversal, sin modelos de dominio:
+  │   ├── errors.py      ApiError, InvalidFields (422 con `fields`), manejadores
+  │   ├── database.py    database_conflicts: restricción de la base -> error de campo
+  │   ├── columns.py     primary_key, foreign_key, timestamp, in_values (CHECK de un enum)
+  │   ├── schemas.py     InputSchema (extra="forbid") y OutputSchema (from_attributes)
+  │   ├── fields.py      PersonName, Email, RecordId y los validadores de texto
+  │   ├── identifiers.py documento (CC, CE, PPT, PA, TI, RC, NIT con su dígito) y correo
+  │   ├── search.py      folded, has_every_word, starts_with, contains (sin tildes, LIKE
+  │   │                  con los comodines escapados)
+  │   ├── countries.py   códigos ISO 3166-1 alfa-2
+  │   └── pagination, money, dates (today, age_on), email
+  └── <dominio>/         models.py, schemas.py, services/, *_router.py, templates/email/
   tests/
   ├── conftest.py        base de prueba, sesión con rollback, app, client, csrf_client
   ├── database.py        crear/borrar la base de prueba y su protección de nombre
   ├── http.py            attach_csrf(client)
-  ├── factories.py       BaseFactory (factory-boy)
+  ├── factories.py       BaseFactory (factory-boy) y las fábricas de cada dominio
+  ├── concurrency.py     wait_until_blocked(engine, n)
   └── <dominio>/test_*.py
   ```
 
@@ -105,8 +115,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - El bloqueo por intentos fallidos cuenta por pareja documento + IP (5) y, aparte, por
     documento en todas las IP (20, fila de `login_attempt` con `ip = "*"`); los fallos más
     viejos que 15 minutos dejan de sumar.
-  - Documento, correo y celular se normalizan solo con `app/accounts/identifiers.py`; la
-    política de contraseñas vive solo en `app/accounts/passwords.py`. Los datos de una
+  - Documento y correo se normalizan solo con `app/common/identifiers.py` (los empleados
+    aceptan CC, CE, PPT y PA) y el celular colombiano de los empleados solo con
+    `app/accounts/identifiers.py`; la política de contraseñas vive solo en `app/accounts/passwords.py`. Los datos de una
     persona (nombres, apellidos, correo, documento, celular) se validan solo con `UserInput`
     de `schemas.py`, que usan la API y `create-admin`: cada tipo normaliza y valida en el
     mismo paso, con mensajes en español. El nombre completo no se guarda: `full_name` es una
@@ -168,6 +179,33 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     sesión de base de datos de la petición a una tarea en segundo plano. Otros dominios
     invitan a alguien con `password_reset.send_invitation(user)`.
   - El bloqueo por intentos vive solo en `services/lockout.py`.
+- **Clientes y viajeros (`app/clients/`):** el CRM: clientes (`Client`) y las personas que
+  viajan (`Traveler`). Permisos `clients.view`, `clients.manage`, `travelers.view` y
+  `travelers.manage`; la migración da los cuatro al rol protegido y al Asesor comercial, y
+  los de "Ver" al Operativo. `services/client_queries.py` y `services/traveler_queries.py`
+  leen (lista con búsqueda sin tildes y ficha), `services/client_management.py` y
+  `services/traveler_management.py` escriben (alta y edición), y los routers son
+  `clients_router.py` (`/api/clients`) y `travelers_router.py` (`/api/travelers`). Reglas que
+  no se repiten en otro lado:
+  - Un cliente es una persona (nombres y apellidos; CC, CE, PPT o PA) o una empresa (razón
+    social; NIT con dígito de verificación). Qué campos aplican a cada tipo lo validan
+    `ClientInput` (cada error en su campo) y los `CHECK` de la tabla. El tipo no se edita.
+  - El documento del cliente es **opcional** pero no se repite (índice único parcial
+    `uq_client_document`); teléfono y correo sí se pueden repetir. El teléfono se guarda en
+    E.164 con `app/clients/phones.py` (`phonenumbers`, Colombia por defecto) y se busca por
+    cualquier parte desde 3 dígitos.
+  - El viajero es un registro propio: su cliente de referencia es opcional, y "es el mismo
+    cliente" (`is_the_client`, solo para una persona y una vez por cliente) no copia ni
+    sincroniza datos. Su documento es obligatorio y único; la edad y si es menor de edad se
+    calculan con la fecha de Bogotá.
+  - La autorización de tratamiento de datos se registra al crear (quién y cuándo) y la
+    edición no la cambia.
+  - Nunca se borra un cliente ni un viajero (`ON DELETE RESTRICT`).
+  - **Bloqueo optimista:** `version` es el `version_id_col` de los dos modelos. El PUT trae
+    `expected_version`: si no coincide con la leída responde `StaleVersion`, y si otra
+    petición guarda entre esa revisión y el commit, el `StaleDataError` también sale como
+    `409 stale_version`.
+  - Las listas no traen notas ni observaciones: pueden tener datos sensibles.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
@@ -239,7 +277,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   `email_down` hace fallar al proveedor, `advisor_role` y `administrator_role` son los roles
   sembrados (`administrator_role` buscado por `is_protected`), y `helpers.py` trae los datos
   de una persona nueva (`NEW_USER`), `second_client(app)` para simular otro navegador y
-  `wait_until_blocked(engine, n)` para las pruebas de concurrencia. Un servicio que pagina
+  `signed_in(app, session, user)` para abrir en él la sesión de una persona.
+  `wait_until_blocked(engine, n)` (`tests/concurrency.py`) espera a que las transacciones de
+  una prueba de concurrencia queden detenidas en un bloqueo. Un servicio que pagina
   se prueba con `fake_request()` de `tests/http.py`.
 - `filterwarnings = ["error"]`: una advertencia rompe la suite; se corrige la causa, no se
   silencia.
@@ -270,6 +310,12 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 - **Migraciones autogeneradas:** revisar los tipos. La plantilla importa `sqlmodel` porque
   autogenerate escribe `sqlmodel.sql.sqltypes.AutoString`; en la primera migración se
   cambiaron por `sa.String`.
+- **Los mensajes de error de PostgreSQL salen en el idioma del servidor:** para saber qué
+  restricción falló se usa `diag.constraint_name` (`app/common/database.py`), nunca el texto
+  del mensaje. Las pruebas de restricciones comparan ese nombre.
+- **`session.get` con un objeto ya en la sesión y vencido** lo refresca y carga sus
+  relaciones con consultas aparte, aunque se le pasen `joinedload`. Una prueba de "una sola
+  consulta" simula una petición nueva vaciando la sesión (`session.expunge_all()`).
 - **`fastapi dev` no está instalado** (necesita `fastapi[standard]`): se levanta con
   `uvicorn`.
 - **Un 500 llega al navegador sin cabeceras CORS:** Starlette arma el 500 en su middleware
@@ -279,12 +325,14 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 
 ## Pendiente antes de los demás modelos del dominio
 
-Antes de modelar clientes, solicitudes y cotizaciones hay que resolver las preguntas
-abiertas del modelo de datos del workspace (`docs/CONTEXTO.md`) con el agente
-`arquitecto`. Las cuentas, roles y sesiones ya existen (ver "Cuentas y acceso").
+Antes de modelar solicitudes, cotizaciones y ventas hay que resolver las preguntas abiertas
+del modelo de datos del workspace (`docs/CONTEXTO.md`) con el agente `arquitecto`. Ya
+existen las cuentas, roles y sesiones ("Cuentas y acceso") y los clientes y viajeros
+("Clientes y viajeros").
 
 ## Stack
 
 FastAPI + SQLModel + Alembic + PostgreSQL, gestor `uv`. Contraseñas con `pwdlib` (Argon2id),
 JWT con PyJWT (con `crypto` para el `id_token` de Google), recuperación y estado de OAuth
-con `itsdangerous`, límite con `slowapi`, correo con Jinja2 + `httpx2`.
+con `itsdangerous`, límite con `slowapi`, correo con Jinja2 + `httpx2`, teléfonos internacionales con
+`phonenumbers`.

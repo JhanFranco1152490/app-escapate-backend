@@ -8,18 +8,13 @@ from sqlmodel import Session, col, select
 from app.clients.models import Traveler
 from app.clients.schemas import TravelerFilters
 from app.common.errors import NotFound
-from app.common.identifiers import normalize_document
 from app.common.pagination import Page, PageParams, paginate
-from app.common.search import folded, has_every_word, starts_with
+from app.common.search import folded, name_or_document
 
 
 def _search(text: str) -> ColumnElement[bool]:
     full_name = col(Traveler.first_name) + " " + col(Traveler.last_name)
-    by_name = has_every_word(full_name, text)
-    document = normalize_document(text)
-    if not document:
-        return by_name
-    return or_(by_name, starts_with(col(Traveler.document_number), document))
+    return or_(*name_or_document(full_name, col(Traveler.document_number), text))
 
 
 def list_travelers(

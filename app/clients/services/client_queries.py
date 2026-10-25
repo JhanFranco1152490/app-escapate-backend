@@ -10,9 +10,8 @@ from sqlmodel import Session, col, select
 from app.clients.models import Client
 from app.clients.schemas import ClientFilters
 from app.common.errors import NotFound
-from app.common.identifiers import normalize_document
 from app.common.pagination import Page, PageParams, paginate
-from app.common.search import contains, folded, has_every_word, starts_with
+from app.common.search import contains, folded, name_or_document
 
 _PHONE_SEPARATORS = re.compile(r"[\s\-().+]")
 # Con menos dígitos casi cualquier teléfono coincidiría.
@@ -25,10 +24,8 @@ _display_name = func.coalesce(
 
 
 def _search(text: str) -> ColumnElement[bool]:
-    conditions = [has_every_word(_display_name, text), contains(col(Client.email), text.lower())]
-    document = normalize_document(text)
-    if document:
-        conditions.append(starts_with(col(Client.document_number), document))
+    conditions = name_or_document(_display_name, col(Client.document_number), text)
+    conditions.append(contains(col(Client.email), text.lower()))
     phone = _PHONE_SEPARATORS.sub("", text)
     if _PHONE_FRAGMENT.match(phone):
         conditions.append(contains(col(Client.phone), phone))

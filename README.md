@@ -23,10 +23,14 @@ administrador desde la gestión de usuarios (`/api/users`), y a cada una le lleg
 para crear su propia contraseña. Los roles y lo que autoriza cada uno se gestionan en
 `/api/roles` y `/api/permissions`.
 
+Los clientes (personas o empresas) y los viajeros se gestionan en `/api/clients` y
+`/api/travelers`. El rol Asesor comercial puede verlos y modificarlos, y el Operativo solo
+verlos.
+
 Con `EMAIL_BACKEND=console` (el valor local) los correos no se envían: se imprimen en la
 terminal del backend, con el enlace de recuperación o de invitación listo para copiar.
 
-La búsqueda de usuarios y el orden de los roles sin tildes usan la extensión `unaccent` de
+La búsqueda de usuarios, clientes y viajeros y el orden de los roles sin tildes usan la extensión `unaccent` de
 PostgreSQL. La migración la crea; desde PostgreSQL 13 es una extensión confiable, así que
 basta con que el rol sea dueño de la base (no hace falta superusuario).
 
