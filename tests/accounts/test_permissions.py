@@ -4,7 +4,16 @@ from app.accounts.permissions import PERMISSIONS, PermissionInfo, check_requires
 
 
 def test_the_registry_lists_the_permissions_in_matrix_order():
-    assert list(PERMISSIONS) == ["users.view", "users.manage", "roles.view", "roles.manage"]
+    assert list(PERMISSIONS) == [
+        "users.view",
+        "users.manage",
+        "roles.view",
+        "roles.manage",
+        "clients.view",
+        "clients.manage",
+        "travelers.view",
+        "travelers.manage",
+    ]
 
 
 def test_each_permission_has_its_place_in_the_matrix():

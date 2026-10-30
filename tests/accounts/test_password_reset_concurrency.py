@@ -1,7 +1,6 @@
 import threading
-import time
 
-from sqlalchemy import delete, text
+from sqlalchemy import delete
 from sqlmodel import Session, col, select
 
 from app.accounts.errors import InvalidResetToken
@@ -9,21 +8,11 @@ from app.accounts.models import LoginAttempt, LoginEvent, RefreshToken, Role, Us
 from app.accounts.services import lockout, password_reset
 from app.accounts.services.reset_tokens import TokenPurpose, make_token
 from app.core.security.passwords import hash_password
+from tests.concurrency import wait_until_blocked
 from tests.factories import UserAccountFactory, use_session
 
 DOCUMENT = "1090555444"
 NEW_PASSWORD = "una frase nueva y larga"
-_WAITING_ON_A_LOCK = "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
-
-
-def _wait_until_blocked(engine) -> None:
-    deadline = time.monotonic() + 10
-    with engine.connect() as connection:
-        while time.monotonic() < deadline:
-            if connection.execute(text(_WAITING_ON_A_LOCK)).scalar_one():
-                return
-            time.sleep(0.05)
-    raise AssertionError("la segunda petición nunca quedó esperando el bloqueo de la cuenta")
 
 
 def _delete_everything_of(engine, user_id: int, role_id: int) -> None:
@@ -65,7 +54,7 @@ def test_a_second_submission_waiting_on_the_account_lock_cannot_reuse_the_link(e
             ).one()
             waiter = threading.Thread(target=second_submission)
             waiter.start()
-            _wait_until_blocked(engine)
+            wait_until_blocked(engine, waiting=1)
 
             # La primera termina: cambia la contraseña, que invalida el enlace, y libera la fila.
             holder.password_hash = hash_password("la contraseña que dejó la primera")

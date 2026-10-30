@@ -6,10 +6,10 @@ from datetime import UTC, datetime
 from sqlmodel import Session, select
 
 from app.accounts.errors import AccountInactive, AccountLocked, InvalidCredentials
-from app.accounts.identifiers import is_valid_document, normalize_document
 from app.accounts.models import LoginMethod, UserAccount
 from app.accounts.services import lockout
 from app.accounts.services.sessions import TokenPair, open_session
+from app.common.identifiers import is_valid_document, normalize_document
 from app.core.security.passwords import hash_password, verify_password
 
 # Sin cuenta (o sin contraseña) se verifica contra este hash, para que la respuesta tarde lo

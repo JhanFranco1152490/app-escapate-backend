@@ -7,7 +7,6 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
-    Identity,
     Index,
     String,
     UniqueConstraint,
@@ -17,6 +16,8 @@ from sqlalchemy import (
     true,
 )
 from sqlmodel import Field, Relationship, SQLModel
+
+from app.common.columns import foreign_key, in_values, primary_key, timestamp
 
 
 class DocumentType(StrEnum):
@@ -42,32 +43,6 @@ class RevokeReason(StrEnum):
     GOOGLE_UNLINKED = "google_unlinked"
 
 
-def _in(column: str, enum: type[StrEnum]) -> str:
-    values = ", ".join(f"'{member.value}'" for member in enum)
-    return f"{column} IN ({values})"
-
-
-def _primary_key():
-    return Field(default=None, sa_column=Column(BigInteger, Identity(), primary_key=True))
-
-
-def _foreign_key(target: str, ondelete: str, **kwargs):
-    return Field(
-        sa_column=Column(
-            BigInteger, ForeignKey(target, ondelete=ondelete), nullable=False, **kwargs
-        )
-    )
-
-
-def _timestamp(nullable: bool = False, **kwargs):
-    if not nullable:
-        kwargs.setdefault("server_default", func.now())
-    return Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=nullable, **kwargs),
-    )
-
-
 class Role(SQLModel, table=True):
     __tablename__ = "role"
     __table_args__ = (
@@ -75,13 +50,13 @@ class Role(SQLModel, table=True):
         Index("uq_role_name_lower", func.lower(text("name")), unique=True),
     )
 
-    id: int | None = _primary_key()
+    id: int | None = primary_key()
     name: str = Field(max_length=80)
     description: str | None = Field(default=None, max_length=200)
     # El rol Administrador: no se renombra, no se borra y siempre tiene todos los permisos.
     is_protected: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
-    created_at: datetime | None = _timestamp()
-    updated_at: datetime | None = _timestamp(onupdate=func.now())
+    created_at: datetime | None = timestamp()
+    updated_at: datetime | None = timestamp(onupdate=func.now())
 
 
 class RolePermission(SQLModel, table=True):
@@ -98,10 +73,12 @@ class UserAccount(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("document_type", "document_number", name="uq_user_account_document"),
         UniqueConstraint("phone", name="uq_user_account_phone"),
-        CheckConstraint(_in("document_type", DocumentType), name="ck_user_account_document_type"),
+        CheckConstraint(
+            in_values("document_type", DocumentType), name="ck_user_account_document_type"
+        ),
     )
 
-    id: int | None = _primary_key()
+    id: int | None = primary_key()
     email: str = Field(max_length=254, unique=True)
     first_name: str = Field(max_length=75)
     last_name: str = Field(max_length=75)
@@ -111,10 +88,10 @@ class UserAccount(SQLModel, table=True):
     password_hash: str | None = Field(default=None, max_length=255)
     google_sub: str | None = Field(default=None, max_length=255, unique=True)
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": true()})
-    role_id: int = _foreign_key("role.id", ondelete="RESTRICT")
-    last_activity_at: datetime | None = _timestamp(nullable=True)
-    created_at: datetime | None = _timestamp()
-    updated_at: datetime | None = _timestamp(onupdate=func.now())
+    role_id: int = foreign_key("role.id", ondelete="RESTRICT")
+    last_activity_at: datetime | None = timestamp(nullable=True)
+    created_at: datetime | None = timestamp()
+    updated_at: datetime | None = timestamp(onupdate=func.now())
 
     role: Role = Relationship()
 
@@ -141,12 +118,12 @@ class UserAccount(SQLModel, table=True):
 class RefreshToken(SQLModel, table=True):
     __tablename__ = "refresh_token"
 
-    id: int | None = _primary_key()
+    id: int | None = primary_key()
     jti: str = Field(max_length=64, unique=True)
-    user_id: int = _foreign_key("user_account.id", ondelete="CASCADE", index=True)
+    user_id: int = foreign_key("user_account.id", ondelete="CASCADE", index=True)
     issued_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
-    revoked_at: datetime | None = _timestamp(nullable=True)
+    revoked_at: datetime | None = timestamp(nullable=True)
     revoke_reason: str | None = Field(default=None, max_length=20)
 
 
@@ -154,24 +131,24 @@ class LoginAttempt(SQLModel, table=True):
     __tablename__ = "login_attempt"
     __table_args__ = (UniqueConstraint("identifier", "ip", name="uq_login_attempt_pair"),)
 
-    id: int | None = _primary_key()
+    id: int | None = primary_key()
     identifier: str = Field(sa_column=Column(String(64), nullable=False))
     ip: str = Field(max_length=45)
     failures: int = Field(default=0)
-    locked_until: datetime | None = _timestamp(nullable=True)
-    updated_at: datetime | None = _timestamp(onupdate=func.now())
+    locked_until: datetime | None = timestamp(nullable=True)
+    updated_at: datetime | None = timestamp(onupdate=func.now())
 
 
 class LoginEvent(SQLModel, table=True):
     __tablename__ = "login_event"
     __table_args__ = (
-        CheckConstraint(_in("method", LoginMethod), name="ck_login_event_method"),
+        CheckConstraint(in_values("method", LoginMethod), name="ck_login_event_method"),
         Index("ix_login_event_user_created", "user_id", "created_at"),
         Index("ix_login_event_created_at", "created_at"),
     )
 
-    id: int | None = _primary_key()
-    user_id: int = _foreign_key("user_account.id", ondelete="CASCADE")
+    id: int | None = primary_key()
+    user_id: int = foreign_key("user_account.id", ondelete="CASCADE")
     method: str = Field(max_length=10)
     ip: str = Field(max_length=45)
-    created_at: datetime | None = _timestamp()
+    created_at: datetime | None = timestamp()

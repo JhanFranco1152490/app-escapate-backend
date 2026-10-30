@@ -12,9 +12,9 @@ import httpx2
 import jwt
 from sqlmodel import Session, col, select
 
-from app.accounts.identifiers import normalize_email
 from app.accounts.models import LoginMethod, UserAccount
 from app.accounts.services.sessions import TokenPair, open_session
+from app.common.identifiers import normalize_email
 from app.core.config import settings
 
 AUTHORIZATION_URL = "https://accounts.google.com/o/oauth2/v2/auth"

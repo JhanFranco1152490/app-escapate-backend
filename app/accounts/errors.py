@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from app.common.errors import ApiError
+from app.common.errors import ApiError, InvalidFields
 
 
 class InvalidCredentials(ApiError):
@@ -24,13 +24,6 @@ class AccountLocked(ApiError):
 class InvalidResetToken(ApiError):
     status_code, code = 400, "invalid_reset_token"
     detail = "El enlace no es válido o ya venció."
-
-
-class InvalidFields(ApiError):
-    """Datos que no se pueden guardar; `fields` dice cuáles y por qué."""
-
-    status_code, code = 422, "validation_error"
-    detail = "Revisa los datos enviados."
 
 
 class InvalidPassword(InvalidFields):

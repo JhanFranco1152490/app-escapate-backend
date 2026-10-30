@@ -5,6 +5,8 @@ from fastapi.openapi.utils import get_openapi
 from app.accounts.roles_router import router as roles_router
 from app.accounts.router import router as accounts_router
 from app.accounts.users_router import router as users_router
+from app.clients.clients_router import router as clients_router
+from app.clients.travelers_router import router as travelers_router
 from app.common.errors import ErrorResponse, register_error_handlers
 from app.core.config import Settings
 from app.core.config import settings as default_settings
@@ -36,6 +38,8 @@ def create_app(settings: Settings = default_settings) -> FastAPI:
     app.include_router(accounts_router)
     app.include_router(users_router)
     app.include_router(roles_router)
+    app.include_router(clients_router)
+    app.include_router(travelers_router)
 
     @app.middleware("http")
     async def no_store(request: Request, call_next):

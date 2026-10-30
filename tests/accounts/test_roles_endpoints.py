@@ -1,12 +1,10 @@
 import pytest
 from sqlmodel import select
 
-from app.accounts.models import LoginMethod, RefreshToken, RolePermission
+from app.accounts.models import RefreshToken, RolePermission
 from app.accounts.permissions import PERMISSIONS
-from app.accounts.services.sessions import open_session
-from app.core.security.cookies import ACCESS_COOKIE
 from app.core.security.csrf import CSRF_HEADER
-from tests.accounts.helpers import second_client
+from tests.accounts.helpers import signed_in
 from tests.factories import RoleFactory, UserAccountFactory
 
 VIEW_ROLES = ["roles.view"]
@@ -28,14 +26,6 @@ WRITE_ENDPOINTS = [
 def grant(session, role, *codes):
     session.add_all(RolePermission(role_id=role.id, permission=code) for code in codes)
     session.flush()
-
-
-def signed_in(app, session, user):
-    """Otro navegador con la sesión abierta de `user`."""
-    browser = second_client(app)
-    pair = open_session(session, user, LoginMethod.DOCUMENT, "127.0.0.1")
-    browser.cookies.set(ACCESS_COOKIE, pair.access, path="/api/")
-    return browser
 
 
 def body(name="Ventas", description=None, permissions=()):
@@ -275,7 +265,13 @@ def test_changing_a_role_from_the_api_applies_to_the_open_session(
     assert response.status_code == 200
     assert response.json()["role"] == {"id": advisor_role.id, "name": "Asesor comercial"}
     me = person.get("/api/auth/me")
-    assert (me.status_code, me.json()["permissions"]) == (200, [])
+    assert me.status_code == 200
+    assert me.json()["permissions"] == [
+        "clients.manage",
+        "clients.view",
+        "travelers.manage",
+        "travelers.view",
+    ]
     assert person.get("/api/users").status_code == 403
     tokens = session.exec(select(RefreshToken).where(RefreshToken.user_id == user.id)).all()
     assert all(token.revoked_at is None for token in tokens)

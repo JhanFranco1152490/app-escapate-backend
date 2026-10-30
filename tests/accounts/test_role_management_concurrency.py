@@ -3,11 +3,11 @@ import threading
 from sqlalchemy import delete, text
 from sqlmodel import Session, col, select
 
-from app.accounts.errors import InvalidFields
 from app.accounts.models import Role
 from app.accounts.schemas import RoleInput
 from app.accounts.services import role_management
-from tests.accounts.helpers import wait_until_blocked
+from app.common.errors import InvalidFields
+from tests.concurrency import wait_until_blocked
 
 NAMES = ["Concurrencia uno", "Concurrencia dos"]
 

@@ -1,8 +1,8 @@
-import time
-
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
+from app.accounts.models import LoginMethod
+from app.accounts.services.sessions import open_session
+from app.core.security.cookies import ACCESS_COOKIE
 from tests.factories import PASSWORD
 from tests.http import attach_csrf
 
@@ -39,19 +39,9 @@ def second_client(app) -> TestClient:
     return attach_csrf(other)
 
 
-_WAITING_ON_A_LOCK = "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
-
-
-def wait_until_blocked(engine, waiting: int) -> None:
-    """Espera a que `waiting` transacciones queden detenidas esperando un bloqueo."""
-    deadline = time.monotonic() + 10
-    with engine.connect() as connection:
-        while time.monotonic() < deadline:
-            blocked = connection.execute(text(_WAITING_ON_A_LOCK)).scalar_one()
-            # PostgreSQL guarda una foto de pg_stat_activity por transacción: sin cerrarla,
-            # cada vuelta vería lo mismo que la primera.
-            connection.rollback()
-            if blocked >= waiting:
-                return
-            time.sleep(0.05)
-    raise AssertionError("las transacciones nunca quedaron esperando el bloqueo")
+def signed_in(app, session, user):
+    """Otro navegador con la sesión abierta de `user`."""
+    browser = second_client(app)
+    pair = open_session(session, user, LoginMethod.DOCUMENT, "127.0.0.1")
+    browser.cookies.set(ACCESS_COOKIE, pair.access, path="/api/")
+    return browser
