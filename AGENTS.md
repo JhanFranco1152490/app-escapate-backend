@@ -51,12 +51,19 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   ├── rate_limit.py  limiter de slowapi
   │   └── security/      passwords, tokens (JWT), cookies, csrf, network (client_ip)
   ├── common/            transversal, sin modelos de dominio:
-  │   ├── errors.py      ApiError, InvalidFields (422 con `fields`), manejadores
+  │   ├── errors.py      ApiError, InvalidFields (422 con `fields`), FieldError (un
+  │   │                  campo con un mensaje fijo), manejadores
   │   ├── database.py    database_conflicts: restricción de la base -> error de campo
-  │   ├── columns.py     primary_key, foreign_key, timestamp, in_values (CHECK de un enum)
-  │   ├── schemas.py     InputSchema (extra="forbid") y OutputSchema (from_attributes)
-  │   ├── fields.py      PersonName, Email, RecordId y los validadores de texto
-  │   ├── identifiers.py documento (CC, CE, PPT, PA, TI, RC, NIT con su dígito) y correo
+  │   ├── columns.py     primary_key, foreign_key, timestamp, in_values (CHECK de un enum),
+  │   │                  version_column y versioned (bloqueo optimista)
+  │   ├── schemas.py     InputSchema (extra="forbid"), OutputSchema (from_attributes),
+  │   │                  UserRef
+  │   ├── fields.py      PersonName, Email, InternationalPhone, City, SearchText, RecordId,
+  │   │                  validadores de texto y del número de documento
+  │   │                  (valid_document_number, optional_document_number)
+  │   ├── identifiers.py documento (CC, CE, PPT, PA, TI, RC, NIT con su dígito, FOREIGN) y
+  │   │                  correo
+  │   ├── phones.py      teléfono internacional a E.164 (phonenumbers, Colombia por defecto)
   │   ├── search.py      folded, has_every_word, starts_with, contains (sin tildes, LIKE
   │   │                  con los comodines escapados)
   │   ├── countries.py   códigos ISO 3166-1 alfa-2
@@ -68,6 +75,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   ├── http.py            attach_csrf(client)
   ├── factories.py       BaseFactory (factory-boy) y las fábricas de cada dominio
   ├── concurrency.py     wait_until_blocked(engine, n)
+  ├── statements.py      recorded_statements(session): las consultas que manda un bloque
   └── <dominio>/test_*.py
   ```
 
@@ -193,7 +201,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     `ClientInput` (cada error en su campo) y los `CHECK` de la tabla. El tipo no se edita.
   - El documento del cliente es **opcional** pero no se repite (índice único parcial
     `uq_client_document`); teléfono y correo sí se pueden repetir. El teléfono se guarda en
-    E.164 con `app/clients/phones.py` (`phonenumbers`, Colombia por defecto) y se busca por
+    E.164 con `app/common/phones.py` (`phonenumbers`, Colombia por defecto) y se busca por
     cualquier parte desde 3 dígitos.
   - El viajero es un registro propio: su cliente de referencia es opcional, y "es el mismo
     cliente" (`is_the_client`, solo para una persona y una vez por cliente) no copia ni
@@ -207,6 +215,30 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     petición guarda entre esa revisión y el commit, el `StaleDataError` también sale como
     `409 stale_version`.
   - Las listas no traen notas ni observaciones: pueden tener datos sensibles.
+- **Proveedores (`app/suppliers/`):** los proveedores turísticos (`Supplier`). Permisos
+  `suppliers.view` y `suppliers.manage`; la migración da los dos al rol protegido y al
+  Encargado de proveedores, y "Ver" al Asesor comercial y al Operativo.
+  `services/supplier_queries.py` lee (lista con búsqueda y filtros, y ficha),
+  `services/supplier_management.py` escribe (alta, edición, desactivar y activar) y el
+  router es `router.py` (`/api/suppliers`). Reglas que no se repiten en otro lado:
+  - La clasificación es una o varias categorías de `SupplierCategory`, guardadas en un
+    arreglo de PostgreSQL (`categories`, con el `ARRAY` de `sqlalchemy.dialects.postgresql`:
+    el genérico no sabe filtrar con `@>`). Se devuelven sin repetidos y en el orden del enum,
+    que es la misma lista de tipos de servicio de la oferta.
+  - El documento es **opcional** pero no se repite (`uq_supplier_document`): NIT, CC, CE o
+    `FOREIGN` (identificación tributaria de otro país, que pierde el guion como los demás).
+  - Un solo contacto, con **teléfono o correo, al menos uno**: un `model_validator(mode=
+    "wrap")` pone el error en los dos campos junto con los demás errores del cuerpo (un
+    validador de campo no ve los campos que vienen después). Vacío o solo espacios cuenta
+    como no llenado.
+  - No se borra: se desactiva y se activa (`POST …/deactivate` y `…/activate`), guardando
+    quién y cuándo, y las dos exigen `expected_version`. Repetir la acción no cambia nada.
+    Al desactivar se asigna la relación `deactivated_by`, no el id: la ficha ya la trae
+    cargada y al guardar pisaría el id.
+  - La comisión es solo de referencia (`numeric(5,2)`, viaja como texto `"10.00"`) y
+    `agreement_expired` se calcula con la fecha de Bogotá; ninguno de los dos desactiva
+    nada.
+  - La lista no trae notas, condiciones de pago ni comisión.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
@@ -328,8 +360,8 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 
 Antes de modelar solicitudes, cotizaciones y ventas hay que resolver las preguntas abiertas
 del modelo de datos del workspace (`docs/CONTEXTO.md`) con el agente `arquitecto`. Ya
-existen las cuentas, roles y sesiones ("Cuentas y acceso") y los clientes y viajeros
-("Clientes y viajeros").
+existen las cuentas, roles y sesiones ("Cuentas y acceso"), los clientes y viajeros
+("Clientes y viajeros") y los proveedores ("Proveedores").
 
 ## Stack
 

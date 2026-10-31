@@ -1,5 +1,4 @@
 import pytest
-from sqlalchemy import event
 from sqlmodel import select
 
 from app.accounts.models import Role, RolePermission
@@ -7,6 +6,7 @@ from app.accounts.permissions import PERMISSIONS
 from app.accounts.services import role_queries
 from app.common.errors import NotFound
 from tests.factories import RoleFactory, UserAccountFactory
+from tests.statements import recorded_statements
 
 SEEDED = ["Administrador", "Asesor comercial", "Encargado de proveedores", "Operativo"]
 
@@ -58,17 +58,8 @@ def test_the_list_is_a_single_query(session):
     for _ in range(3):
         UserAccountFactory(role=RoleFactory())
     session.expire_all()
-    statements = []
-
-    def record(connection, cursor, statement, *args):
-        statements.append(statement)
-
-    connection = session.get_bind()
-    event.listen(connection, "before_cursor_execute", record)
-    try:
+    with recorded_statements(session) as statements:
         role_queries.list_roles(session)
-    finally:
-        event.remove(connection, "before_cursor_execute", record)
 
     assert len(statements) == 1
 
