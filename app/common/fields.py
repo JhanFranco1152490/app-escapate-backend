@@ -9,7 +9,7 @@ from collections.abc import Callable
 from typing import Annotated
 
 from email_validator import EmailNotValidError, validate_email
-from pydantic import AfterValidator, Field, StringConstraints
+from pydantic import AfterValidator, Field, StringConstraints, ValidationInfo
 from pydantic_core import PydanticCustomError
 
 from app.common.identifiers import (
@@ -96,6 +96,23 @@ def valid_document_number(document_type: str, value: str) -> str:
     if not is_valid_document(document_type, number):
         raise PydanticCustomError("invalid_document", "No es válido para ese tipo.")
     return number
+
+
+def optional_document_number(value: str | None, info: ValidationInfo) -> str | None:
+    """Para un documento opcional: tipo y número van juntos o ninguno de los dos. Se usa en
+    el validador de `document_number`, declarado después de `document_type`."""
+    number = None if value is None or not value.strip() else value
+    if "document_type" not in info.data:
+        # El tipo ya falló: ese es el error que se informa; aquí solo se normaliza.
+        return normalize_document(number) if number else None
+    document_type = info.data["document_type"]
+    if document_type is None and number is None:
+        return None
+    if number is None:
+        raise PydanticCustomError("required", "Indica también el número.")
+    if document_type is None:
+        raise PydanticCustomError("required", "Elige también el tipo de documento.")
+    return valid_document_number(document_type, number)
 
 
 PersonName = Annotated[str, AfterValidator(required_text(NAME_MAX_LENGTH))]

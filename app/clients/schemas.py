@@ -21,6 +21,7 @@ from app.common.fields import (
     PersonName,
     RecordId,
     SearchText,
+    optional_document_number,
     optional_text,
     valid_document_number,
 )
@@ -139,18 +140,7 @@ class ClientInput(InputSchema):
     def document_number_goes_with_its_type(
         cls, value: str | None, info: ValidationInfo
     ) -> str | None:
-        number = None if value is None or not value.strip() else value
-        if "document_type" not in info.data:
-            # El tipo ya falló: ese es el error que se informa; aquí solo se normaliza.
-            return normalize_document(number) if number else None
-        document_type = info.data["document_type"]
-        if document_type is None and number is None:
-            return None
-        if number is None:
-            raise _error("required", "Indica también el número.")
-        if document_type is None:
-            raise _error("required", "Elige también el tipo de documento.")
-        return valid_document_number(document_type, number)
+        return optional_document_number(value, info)
 
     @field_validator("contact_source_detail")
     @classmethod
