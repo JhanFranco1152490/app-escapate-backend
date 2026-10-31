@@ -84,6 +84,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   | ---------- | ----------------------------------------------------------------------- |
   | `accounts` | —                                                                       |
   | `clients`  | `accounts` (`models.UserAccount`: quién registró y quién autorizó los datos) |
+  | `suppliers` | `accounts` (`models.UserAccount`: quién registró y quién desactivó) |
 
 - **Cuentas y acceso (`app/accounts/`):**
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un

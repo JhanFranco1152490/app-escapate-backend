@@ -13,6 +13,8 @@ def test_the_registry_lists_the_permissions_in_matrix_order():
         "clients.manage",
         "travelers.view",
         "travelers.manage",
+        "suppliers.view",
+        "suppliers.manage",
     ]
 
 

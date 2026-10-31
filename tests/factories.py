@@ -1,10 +1,12 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 import factory
 
 from app.accounts.models import Role, UserAccount
 from app.clients.models import Client, Traveler
+from app.common.identifiers import nit_check_digit
 from app.core.security.passwords import hash_password
+from app.suppliers.models import Supplier
 
 PASSWORD = "contrasena-de-prueba-123"
 # Argon2 es lento a propósito: un solo hash para todas las cuentas de prueba.
@@ -86,3 +88,30 @@ class TravelerFactory(BaseFactory):
     nationality = "CO"
     created_by = factory.SubFactory(UserAccountFactory)
     data_consent_by = factory.SelfAttribute("created_by")
+
+
+def _invented_nit(n: int) -> str:
+    base = str(900_000_000 + n)
+    return f"{base}{nit_check_digit(base)}"
+
+
+class SupplierFactory(BaseFactory):
+    """Un proveedor activo de alojamiento con NIT; `inactive=True` lo da desactivado."""
+
+    class Meta:
+        model = Supplier
+
+    class Params:
+        inactive = factory.Trait(
+            is_active=False,
+            deactivated_at=factory.LazyFunction(lambda: datetime.now(timezone.utc)),
+            deactivated_by=factory.SelfAttribute("created_by"),
+        )
+
+    trade_name = factory.Sequence(lambda n: f"Proveedor de prueba {n}")
+    document_type = "NIT"
+    document_number = factory.Sequence(_invented_nit)
+    categories = factory.LazyFunction(lambda: ["lodging"])
+    contact_name = "Contacto de prueba"
+    contact_phone = factory.Sequence(lambda n: f"+57320{n:07d}")
+    created_by = factory.SubFactory(UserAccountFactory)

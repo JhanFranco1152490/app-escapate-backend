@@ -93,6 +93,21 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         requires=("travelers.view",),
         help="Registrar viajeros y editar sus datos.",
     ),
+    "suppliers.view": PermissionInfo(
+        section="Oferta turística",
+        group="Proveedores",
+        label="Ver",
+        description="Ver proveedores",
+        help="Ver la lista de proveedores, buscarlos y consultar su ficha.",
+    ),
+    "suppliers.manage": PermissionInfo(
+        section="Oferta turística",
+        group="Proveedores",
+        label="Gestionar",
+        description="Gestionar proveedores",
+        requires=("suppliers.view",),
+        help="Registrar proveedores, editar sus datos y desactivarlos.",
+    ),
 }
 
 
