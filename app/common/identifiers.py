@@ -13,6 +13,10 @@ _TI = re.compile(r"[0-9]{10,11}\Z")
 _RC = re.compile(r"[0-9A-Z]{8,15}\Z")
 # NIT completo: la base y, al final, el dígito de verificación.
 _NIT = re.compile(r"[0-9]{9,10}\Z")
+# Identificación tributaria de otro país (EIN, RFC, RUC...): cada país tiene su formato, así
+# que solo se exige un largo razonable. Pierde el guion como los demás documentos, para que
+# el mismo número escrito con o sin él no quede guardado dos veces.
+_FOREIGN = re.compile(r"[0-9A-Z]{3,30}\Z")
 
 # Pesos oficiales de la DIAN, del dígito de la derecha hacia la izquierda.
 _NIT_WEIGHTS = (3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71)
@@ -47,6 +51,7 @@ DOCUMENT_RULES: dict[str, Callable[[str], bool]] = {
     "TI": lambda number: bool(_TI.match(number)),
     "RC": lambda number: bool(_RC.match(number)),
     "NIT": _is_valid_nit,
+    "FOREIGN": lambda number: bool(_FOREIGN.match(number)),
 }
 
 
