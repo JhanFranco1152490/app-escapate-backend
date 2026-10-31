@@ -1,14 +1,7 @@
 from datetime import date, datetime
 from typing import Annotated
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    Field,
-    StringConstraints,
-    ValidationInfo,
-    field_validator,
-)
+from pydantic import AfterValidator, BaseModel, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.clients.models import (
@@ -18,25 +11,22 @@ from app.clients.models import (
     ContactSource,
     TravelerDocumentType,
 )
-from app.clients.phones import normalize_international_phone
 from app.common.countries import COUNTRY_CODES
 from app.common.dates import today
 from app.common.fields import (
     NAME_MAX_LENGTH,
+    City,
     Email,
+    InternationalPhone,
     PersonName,
     RecordId,
+    SearchText,
     optional_text,
-    without_control_characters,
+    valid_document_number,
 )
-from app.common.identifiers import (
-    has_wrong_nit_check_digit,
-    is_valid_document,
-    normalize_document,
-)
-from app.common.schemas import InputSchema, OutputSchema
+from app.common.identifiers import normalize_document
+from app.common.schemas import InputSchema, OutputSchema, UserRef
 
-DOCUMENT_MAX_LENGTH = 30
 OLDEST_BIRTH_DATE = date(1900, 1, 1)
 
 _REQUIRED = "Este campo es obligatorio."
@@ -46,13 +36,6 @@ _NOT_FOR_COMPANY = "No aplica para una empresa."
 
 def _error(kind: str, message: str) -> PydanticCustomError:
     return PydanticCustomError(kind, message)
-
-
-def _phone(value: str) -> str:
-    number = normalize_international_phone(value)
-    if number is None:
-        raise _error("invalid_phone", "No es un teléfono válido para ese país.")
-    return number
 
 
 def _past_date(value: date) -> date:
@@ -70,30 +53,14 @@ def _country(value: str) -> str:
     return code
 
 
-def _document_number(document_type: str, value: str) -> str:
-    number = normalize_document(value) if len(value) <= DOCUMENT_MAX_LENGTH else ""
-    if has_wrong_nit_check_digit(number) and document_type == ClientDocumentType.NIT:
-        raise _error("invalid_check_digit", "El dígito de verificación del NIT no coincide.")
-    if not is_valid_document(document_type, number):
-        raise _error("invalid_document", "No es válido para ese tipo.")
-    return number
-
-
-InternationalPhone = Annotated[str, AfterValidator(_phone)]
 PastDate = Annotated[date, AfterValidator(_past_date)]
 CountryCode = Annotated[str, AfterValidator(_country)]
 # Opcionales en el esquema: si son obligatorios depende del tipo de cliente.
 OptionalName = Annotated[str, AfterValidator(optional_text(NAME_MAX_LENGTH))]
 BusinessName = Annotated[str, AfterValidator(optional_text(150))]
-City = Annotated[str, AfterValidator(optional_text(80))]
 ContactDetail = Annotated[str, AfterValidator(optional_text(120))]
 ClientNotes = Annotated[str, AfterValidator(optional_text(2000))]
 TravelerNotes = Annotated[str, AfterValidator(optional_text(1000))]
-SearchText = Annotated[
-    str,
-    StringConstraints(strip_whitespace=True, max_length=100),
-    AfterValidator(without_control_characters),
-]
 
 
 def _depends_on_type():
@@ -183,7 +150,7 @@ class ClientInput(InputSchema):
             raise _error("required", "Indica también el número.")
         if document_type is None:
             raise _error("required", "Elige también el tipo de documento.")
-        return _document_number(document_type, number)
+        return valid_document_number(document_type, number)
 
     @field_validator("contact_source_detail")
     @classmethod
@@ -226,7 +193,7 @@ class TravelerInput(InputSchema):
         document_type = info.data.get("document_type")
         if document_type is None:
             return normalize_document(value)
-        return _document_number(document_type, value)
+        return valid_document_number(document_type, value)
 
     @field_validator("is_the_client")
     @classmethod
@@ -266,11 +233,6 @@ class ClientFilters(BaseModel):
 class TravelerFilters(BaseModel):
     q: SearchText = ""
     client_id: RecordId | None = None
-
-
-class UserRef(OutputSchema):
-    id: int
-    full_name: str
 
 
 class ClientListItem(OutputSchema):

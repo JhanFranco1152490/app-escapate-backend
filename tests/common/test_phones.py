@@ -1,6 +1,6 @@
 import pytest
 
-from app.clients.phones import normalize_international_phone
+from app.common.phones import normalize_international_phone
 
 
 @pytest.mark.parametrize(

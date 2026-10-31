@@ -57,6 +57,16 @@ class InvalidFields(ApiError):
     detail = "Revisa los datos enviados."
 
 
+class FieldError(InvalidFields):
+    """Un solo campo con un mensaje fijo."""
+
+    field: str
+    message: str
+
+    def __init__(self):
+        super().__init__(fields={self.field: [self.message]})
+
+
 class StaleVersion(ApiError):
     status_code, code = 409, "stale_version"
     detail = "Alguien más guardó cambios. Recarga para ver la versión actual."

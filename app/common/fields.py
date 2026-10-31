@@ -9,16 +9,23 @@ from collections.abc import Callable
 from typing import Annotated
 
 from email_validator import EmailNotValidError, validate_email
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, Field, StringConstraints
 from pydantic_core import PydanticCustomError
 
-from app.common.identifiers import normalize_email
+from app.common.identifiers import (
+    has_wrong_nit_check_digit,
+    is_valid_document,
+    normalize_document,
+    normalize_email,
+)
+from app.common.phones import normalize_international_phone
 
 # Cabe en BIGINT: un id mayor haría fallar la consulta en la base en vez de no encontrar nada.
 RecordId = Annotated[int, Field(ge=1, le=2**63 - 1)]
 
 NAME_MAX_LENGTH = 75
 EMAIL_MAX_LENGTH = 254
+DOCUMENT_MAX_LENGTH = 30
 
 _FORBIDDEN_CATEGORIES = {"Cc", "Cf"}
 
@@ -72,5 +79,31 @@ def _email(value: str) -> str:
         raise invalid from None
 
 
+def _international_phone(value: str) -> str:
+    number = normalize_international_phone(value)
+    if number is None:
+        raise PydanticCustomError("invalid_phone", "No es un teléfono válido para ese país.")
+    return number
+
+
+def valid_document_number(document_type: str, value: str) -> str:
+    """El número normalizado, si es válido para su tipo; cada dominio decide qué tipos acepta."""
+    number = normalize_document(value) if len(value) <= DOCUMENT_MAX_LENGTH else ""
+    if document_type == "NIT" and has_wrong_nit_check_digit(number):
+        raise PydanticCustomError(
+            "invalid_check_digit", "El dígito de verificación del NIT no coincide."
+        )
+    if not is_valid_document(document_type, number):
+        raise PydanticCustomError("invalid_document", "No es válido para ese tipo.")
+    return number
+
+
 PersonName = Annotated[str, AfterValidator(required_text(NAME_MAX_LENGTH))]
 Email = Annotated[str, AfterValidator(_email)]
+InternationalPhone = Annotated[str, AfterValidator(_international_phone)]
+City = Annotated[str, AfterValidator(optional_text(80))]
+SearchText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, max_length=100),
+    AfterValidator(without_control_characters),
+]
