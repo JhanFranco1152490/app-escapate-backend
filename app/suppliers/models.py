@@ -2,7 +2,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import ARRAY, CheckConstraint, Column, Index, Numeric, String, Text, func, text
+from sqlalchemy import CheckConstraint, Column, Index, Numeric, String, Text, func, text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import declared_attr
 from sqlalchemy.sql import true
 from sqlmodel import Field, Relationship, SQLModel
