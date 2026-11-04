@@ -1,5 +1,4 @@
 import pytest
-from sqlalchemy import event
 
 from app.clients.schemas import ClientFilters
 from app.clients.services import client_queries
@@ -7,6 +6,7 @@ from app.common.errors import NotFound
 from app.common.pagination import PageParams
 from tests.factories import ClientFactory, UserAccountFactory
 from tests.http import fake_request
+from tests.statements import recorded_statements
 
 
 def search(session, **filters):
@@ -159,17 +159,8 @@ def test_words_after_the_fifth_are_ignored(session, clients):
 
 def test_the_list_needs_only_the_count_and_the_page(session, clients):
     session.expire_all()
-    statements = []
-
-    def record(connection, cursor, statement, *args):
-        statements.append(statement)
-
-    connection = session.get_bind()
-    event.listen(connection, "before_cursor_execute", record)
-    try:
+    with recorded_statements(session) as statements:
         page = search(session)
-    finally:
-        event.remove(connection, "before_cursor_execute", record)
 
     assert page.count == 4
     assert len(statements) == 2
@@ -180,18 +171,9 @@ def test_get_client_loads_who_registered_it_in_the_same_query(session):
     client = ClientFactory(created_by=advisor)
     # Una petición nueva empieza con la sesión vacía.
     session.expunge_all()
-    statements = []
-
-    def record(connection, cursor, statement, *args):
-        statements.append(statement)
-
-    connection = session.get_bind()
-    event.listen(connection, "before_cursor_execute", record)
-    try:
+    with recorded_statements(session) as statements:
         found = client_queries.get_client(session, client.id)
         who = (found.created_by.full_name, found.data_consent_by.full_name)
-    finally:
-        event.remove(connection, "before_cursor_execute", record)
 
     assert who == ("Laura Rojas", "Laura Rojas")
     assert len(statements) == 1

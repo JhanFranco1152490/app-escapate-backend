@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import event
 
 from app.accounts.models import LoginEvent
 from app.accounts.schemas import LoginEventItem, UserDetail, UserFilters, UserListItem
@@ -10,6 +9,7 @@ from app.common.errors import NotFound
 from app.common.pagination import PageParams
 from tests.factories import RoleFactory, UserAccountFactory
 from tests.http import fake_request
+from tests.statements import recorded_statements
 
 
 def search(session, **filters):
@@ -72,18 +72,9 @@ def test_the_list_loads_roles_without_a_query_per_user(session):
     for _ in range(6):
         UserAccountFactory()
     session.expire_all()
-    statements = []
-
-    def record(connection, cursor, statement, *args):
-        statements.append(statement)
-
-    connection = session.get_bind()
-    event.listen(connection, "before_cursor_execute", record)
-    try:
+    with recorded_statements(session) as statements:
         page = search(session)
         roles = [user.role.name for user in page.results]
-    finally:
-        event.remove(connection, "before_cursor_execute", record)
 
     assert len(roles) == 6
     assert len(statements) == 2  # el conteo y la página

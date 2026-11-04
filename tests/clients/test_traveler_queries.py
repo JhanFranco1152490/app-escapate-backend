@@ -1,5 +1,4 @@
 import pytest
-from sqlalchemy import event
 
 from app.clients.schemas import TravelerFilters
 from app.clients.services import traveler_queries
@@ -7,6 +6,7 @@ from app.common.errors import NotFound
 from app.common.pagination import PageParams
 from tests.factories import ClientFactory, TravelerFactory
 from tests.http import fake_request
+from tests.statements import recorded_statements
 
 
 def search(session, **filters):
@@ -93,18 +93,9 @@ def test_filtering_by_a_client_that_does_not_exist_is_an_empty_page(session, tra
 
 def test_the_list_loads_the_reference_clients_without_a_query_per_traveler(session, travelers):
     session.expire_all()
-    statements = []
-
-    def record(connection, cursor, statement, *args):
-        statements.append(statement)
-
-    connection = session.get_bind()
-    event.listen(connection, "before_cursor_execute", record)
-    try:
+    with recorded_statements(session) as statements:
         page = search(session)
         clients = [t.reference_client and t.reference_client.display_name for t in page.results]
-    finally:
-        event.remove(connection, "before_cursor_execute", record)
 
     assert clients == ["Marcela Gómez Ortiz", "Viajes del Norte SAS", "Marcela Gómez Ortiz", None]
     assert len(statements) == 2
@@ -114,22 +105,13 @@ def test_get_traveler_loads_its_relations_in_the_same_query(session, travelers):
     traveler_id = travelers["camila"].id
     # Una petición nueva empieza con la sesión vacía.
     session.expunge_all()
-    statements = []
-
-    def record(connection, cursor, statement, *args):
-        statements.append(statement)
-
-    connection = session.get_bind()
-    event.listen(connection, "before_cursor_execute", record)
-    try:
+    with recorded_statements(session) as statements:
         found = traveler_queries.get_traveler(session, traveler_id)
         loaded = (
             found.reference_client.display_name,
             found.created_by.full_name,
             found.data_consent_by.full_name,
         )
-    finally:
-        event.remove(connection, "before_cursor_execute", record)
 
     assert loaded[0] == "Marcela Gómez Ortiz"
     assert len(statements) == 1

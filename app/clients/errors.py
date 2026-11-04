@@ -1,29 +1,19 @@
-from app.common.errors import InvalidFields
+from app.common.errors import FieldError, InvalidFields
 
 
-class _FieldError(InvalidFields):
-    """Un solo campo con un mensaje fijo."""
-
-    field: str
-    message: str
-
-    def __init__(self):
-        super().__init__(fields={self.field: [self.message]})
-
-
-class DuplicateClient(_FieldError):
+class DuplicateClient(FieldError):
     field, message = "document_number", "Ya existe un cliente con ese documento."
 
 
-class DuplicateTraveler(_FieldError):
+class DuplicateTraveler(FieldError):
     field, message = "document_number", "Ya existe un viajero con ese documento."
 
 
-class ClientTypeChanged(_FieldError):
+class ClientTypeChanged(FieldError):
     field, message = "client_type", "El tipo de cliente no se puede cambiar."
 
 
-class ClientAlreadyTraveler(_FieldError):
+class ClientAlreadyTraveler(FieldError):
     field, message = "is_the_client", "Este cliente ya tiene su ficha de viajero."
 
 

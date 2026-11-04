@@ -1,12 +1,19 @@
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, Column, Index, Integer, String, Text, func, text
+from sqlalchemy import CheckConstraint, Column, Index, String, Text, func, text
 from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.accounts.models import UserAccount
-from app.common.columns import foreign_key, in_values, primary_key, timestamp
+from app.common.columns import (
+    foreign_key,
+    in_values,
+    primary_key,
+    timestamp,
+    version_column,
+    versioned,
+)
 from app.common.dates import age_on, today
 
 ADULT_AGE = 18
@@ -51,16 +58,6 @@ class ContactSource(StrEnum):
     REFERRAL = "referral"
     WALK_IN = "walk_in"
     OTHER = "other"
-
-
-def _version():
-    return Field(default=None, sa_column=Column(Integer, nullable=False))
-
-
-def _versioned(cls) -> dict:
-    # Bloqueo optimista: cada UPDATE exige que la versión en la base siga siendo la que se
-    # leyó, y la sube en uno. Si otra petición guardó antes, SQLAlchemy lanza StaleDataError.
-    return {"version_id_col": cls.__table__.c.version}
 
 
 _PERSON_DOCUMENTS = ", ".join(f"'{member.value}'" for member in PERSON_DOCUMENT_TYPES)
@@ -125,7 +122,7 @@ class Client(SQLModel, table=True):
     created_by_id: int = foreign_key("user_account.id", ondelete="RESTRICT")
     created_at: datetime | None = timestamp()
     updated_at: datetime | None = timestamp(onupdate=func.now())
-    version: int | None = _version()
+    version: int | None = version_column()
 
     created_by: UserAccount = Relationship(
         sa_relationship_kwargs={"foreign_keys": "[Client.created_by_id]"}
@@ -136,7 +133,7 @@ class Client(SQLModel, table=True):
 
     @declared_attr.directive
     def __mapper_args__(cls) -> dict:
-        return _versioned(cls)
+        return versioned(cls)
 
     @property
     def display_name(self) -> str:
@@ -183,7 +180,7 @@ class Traveler(SQLModel, table=True):
     created_by_id: int = foreign_key("user_account.id", ondelete="RESTRICT")
     created_at: datetime | None = timestamp()
     updated_at: datetime | None = timestamp(onupdate=func.now())
-    version: int | None = _version()
+    version: int | None = version_column()
 
     reference_client: Client | None = Relationship()
     created_by: UserAccount = Relationship(
@@ -195,7 +192,7 @@ class Traveler(SQLModel, table=True):
 
     @declared_attr.directive
     def __mapper_args__(cls) -> dict:
-        return _versioned(cls)
+        return versioned(cls)
 
     @property
     def full_name(self) -> str:

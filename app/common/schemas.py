@@ -11,3 +11,10 @@ class OutputSchema(BaseModel):
     """Respuesta armada desde un modelo de la base."""
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserRef(OutputSchema):
+    """Quién hizo algo (registró, autorizó, desactivó), tal como lo muestra una ficha."""
+
+    id: int
+    full_name: str

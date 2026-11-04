@@ -46,6 +46,9 @@ def test_document_separators_are_removed_and_letters_uppercased(raw, expected):
         ("NIT", "900000002" + "1"),
         ("NIT", "900000009" + "0"),
         pytest.param("NIT", "80019726" + "3", id="nit-with-an-eight-digit-base"),
+        ("FOREIGN", "A1234567"),
+        ("FOREIGN", "123"),
+        pytest.param("FOREIGN", "A" * 30, id="foreign-longest"),
     ],
 )
 def test_valid_documents(document_type, number):
@@ -79,10 +82,24 @@ def test_valid_documents(document_type, number):
         pytest.param("NIT", "80019726A4", id="nit-with-letters"),
         pytest.param("NIT", "8001972684\n", id="nit-trailing-newline"),
         pytest.param("NIT", "", id="nit-empty"),
+        pytest.param("FOREIGN", "12", id="foreign-too-short"),
+        pytest.param("FOREIGN", "A" * 31, id="foreign-too-long"),
+        pytest.param("FOREIGN", "AB/12345", id="foreign-with-a-slash"),
+        pytest.param("FOREIGN", "12-3456789", id="foreign-not-normalized"),
+        pytest.param("FOREIGN", "ÑB12345", id="foreign-non-ascii-letter"),
+        pytest.param("FOREIGN", "١٢٣٤٥٦", id="foreign-other-alphabet-digits"),
+        pytest.param("FOREIGN", "A1234567\n", id="foreign-trailing-newline"),
+        pytest.param("FOREIGN", "", id="foreign-empty"),
     ],
 )
 def test_invalid_documents(document_type, number):
     assert not is_valid_document(document_type, number)
+
+
+def test_a_foreign_tax_id_loses_its_dash_like_every_other_document():
+    number = normalize_document("12-3456789")
+    assert number == "123456789"
+    assert is_valid_document("FOREIGN", number)
 
 
 def test_normalizing_removes_a_trailing_newline_before_validation():

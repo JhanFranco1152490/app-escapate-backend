@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Identity, func
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Identity, Integer, func
 from sqlmodel import Field
 
 
@@ -21,6 +21,16 @@ def foreign_key(target: str, ondelete: str, nullable: bool = False, **kwargs):
     if nullable:
         return Field(default=None, sa_column=column)
     return Field(sa_column=column)
+
+
+def version_column():
+    return Field(default=None, sa_column=Column(Integer, nullable=False))
+
+
+def versioned(cls) -> dict:
+    # Bloqueo optimista: cada UPDATE exige que la versión en la base siga siendo la que se
+    # leyó, y la sube en uno. Si otra petición guardó antes, SQLAlchemy lanza StaleDataError.
+    return {"version_id_col": cls.__table__.c.version}
 
 
 def timestamp(nullable: bool = False, **kwargs):

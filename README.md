@@ -27,10 +27,14 @@ Los clientes (personas o empresas) y los viajeros se gestionan en `/api/clients`
 `/api/travelers`. El rol Asesor comercial puede verlos y modificarlos, y el Operativo solo
 verlos.
 
+Los proveedores turísticos se gestionan en `/api/suppliers`. El Encargado de proveedores
+puede registrarlos, editarlos, desactivarlos y activarlos; el Asesor comercial y el
+Operativo solo verlos.
+
 Con `EMAIL_BACKEND=console` (el valor local) los correos no se envían: se imprimen en la
 terminal del backend, con el enlace de recuperación o de invitación listo para copiar.
 
-La búsqueda de usuarios, clientes y viajeros y el orden de los roles sin tildes usan la extensión `unaccent` de
+La búsqueda de usuarios, clientes, viajeros y proveedores y el orden de los roles sin tildes usan la extensión `unaccent` de
 PostgreSQL. La migración la crea; desde PostgreSQL 13 es una extensión confiable, así que
 basta con que el rol sea dueño de la base (no hace falta superusuario).
 

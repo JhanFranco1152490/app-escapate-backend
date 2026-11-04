@@ -15,14 +15,16 @@ from app.accounts.identifiers import is_valid_phone, normalize_phone
 from app.accounts.models import DocumentType, LoginMethod
 from app.accounts.services.reset_tokens import TokenPurpose
 from app.common.fields import (
+    DOCUMENT_MAX_LENGTH,
     Email,
     PersonName,
     RecordId,
+    SearchText,
     optional_text,
     required_text,
-    without_control_characters,
+    valid_document_number,
 )
-from app.common.identifiers import is_valid_document, normalize_document
+from app.common.identifiers import normalize_document
 from app.common.schemas import InputSchema as _Input
 from app.common.schemas import OutputSchema as _Output
 
@@ -33,7 +35,6 @@ ROLE_NAME_MAX_LENGTH = 80
 ROLE_DESCRIPTION_MAX_LENGTH = 200
 PERMISSIONS_MAX_COUNT = 100
 PERMISSION_CODE_MAX_LENGTH = 100
-DOCUMENT_MAX_LENGTH = 30
 PHONE_MAX_LENGTH = 20
 
 
@@ -51,7 +52,7 @@ Phone = Annotated[str, AfterValidator(_phone)]
 class DocumentInput(_Input):
     document_type: DocumentType
     document_number: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=DOCUMENT_MAX_LENGTH)
     ]
 
 
@@ -74,14 +75,11 @@ class UserInput(_Input):
     @field_validator("document_number")
     @classmethod
     def normalize_and_check_document(cls, value: str, info: ValidationInfo) -> str:
-        number = normalize_document(value) if len(value) <= DOCUMENT_MAX_LENGTH else ""
         # Si el tipo ya falló, ese error es el que se informa; aquí solo se normaliza.
         document_type = info.data.get("document_type")
         if document_type is None:
-            return number
-        if not is_valid_document(document_type, number):
-            raise PydanticCustomError("invalid_document", "No es válido para ese tipo.")
-        return number
+            return normalize_document(value)
+        return valid_document_number(document_type, value)
 
 
 class UserCreate(UserInput):
@@ -163,11 +161,7 @@ class SessionUser(BaseModel):
 
 
 class UserFilters(BaseModel):
-    q: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, max_length=100),
-        AfterValidator(without_control_characters),
-    ] = ""
+    q: SearchText = ""
     status: Literal["active", "inactive"] | None = None
     role_id: RecordId | None = None
 
