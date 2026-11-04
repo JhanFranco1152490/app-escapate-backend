@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     rate_password_reset: str = "5/hour"
     rate_password_reset_confirm: str = "20/hour"
     rate_user_invitation: str = "10/hour"
+    # Habilita el comando seed-demo; solo se define en el entorno de pruebas compartido.
+    allow_demo_seed: bool = False
 
     @field_validator("database_url", "test_database_url")
     @classmethod

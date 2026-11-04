@@ -67,6 +67,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   ├── search.py      folded, has_every_word, starts_with, contains (sin tildes, LIKE
   │   │                  con los comodines escapados)
   │   ├── countries.py   códigos ISO 3166-1 alfa-2
+  │   ├── seeding.py     seed_if_new: carga de demostración repetible (omite por documento)
   │   └── pagination, money, dates (today, age_on), email
   └── <dominio>/         models.py, schemas.py, services/, *_router.py, templates/email/
   tests/
@@ -139,6 +140,23 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - Primera cuenta (o respaldo si el único administrador pierde el acceso):
     `uv run python -m app.cli create-admin` (pide nombres, apellidos, correo, documento,
     celular y contraseña). La crea con el rol protegido, buscado por `is_protected`.
+    `services/account_setup.py` (`create_account`) crea una cuenta con un rol dado, sin
+    invitación por correo, y la comparten `create-admin` y la carga de demostración.
+  - Datos de demostración para el entorno de pruebas compartido (staging):
+    `ALLOW_DEMO_SEED=true uv run python -m app.cli seed-demo --with-demo-data`. Sin
+    `ALLOW_DEMO_SEED=true` el comando se niega a correr (esa variable solo se define en
+    staging, nunca en producción). Crea cuatro cuentas ficticias, una por rol sembrado
+    (`demo_data.py`; las contraseñas están en el código a propósito: son cuentas inventadas
+    que solo existen en staging) y, con `--with-demo-data`, unos pocos clientes, viajeros y
+    proveedores ficticios (`demo_data.py` de `clients` y `suppliers`, cargados con sus
+    servicios de alta para respetar sus validaciones). Reglas:
+    - Repetible: lo que ya existe (mismo documento) se omite y se informa, no falla ni
+      duplica. Se mira antes de crear y no se atrapa el error del servicio, porque un viajero
+      repetido puede fallar por varias reglas a la vez.
+    - Los roles se buscan todos antes de crear nada (el Administrador por `is_protected`, los
+      demás por nombre): si falta uno no queda una carga a medias.
+    - La salida es una tabla (rol, documento, correo, estado), nunca contraseñas.
+    - Los datos de demostración usan al Administrador de demostración como autor.
   - Gestión de usuarios (`users_router.py`, permisos `users.view` y `users.manage`, que la
     migración asigna al rol Administrador): `services/user_queries.py` lee (lista con
     búsqueda sin tildes, ficha, ingresos) y `services/user_management.py` escribe (alta,
