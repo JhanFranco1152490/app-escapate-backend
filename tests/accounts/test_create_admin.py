@@ -4,7 +4,8 @@ from sqlmodel import col, func, select
 
 from app import cli
 from app.accounts.models import Role, UserAccount
-from app.accounts.services.admin_setup import SetupError, create_admin
+from app.accounts.services.account_setup import SetupError
+from app.accounts.services.admin_setup import create_admin
 from app.core.security.passwords import verify_password
 from tests.factories import RoleFactory, UserAccountFactory
 
