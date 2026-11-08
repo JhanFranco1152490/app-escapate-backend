@@ -10,7 +10,8 @@ from sqlmodel import Session, select
 @dataclass(frozen=True)
 class SeededRecord:
     kind: str
-    document: str
+    # Lo que identifica al registro en el informe: su documento, o su nombre si no tiene.
+    label: str
     created: bool
 
 

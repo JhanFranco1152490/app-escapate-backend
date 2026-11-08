@@ -19,6 +19,7 @@ from app.common.seeding import SeededRecord
 from app.core.config import settings
 from app.core.db import engine
 from app.suppliers.services.demo_suppliers import seed_demo_suppliers
+from app.suppliers.services.demo_tourist_services import seed_demo_tourist_services
 
 
 def _create_admin(session: Session, args: argparse.Namespace) -> int:
@@ -78,8 +79,8 @@ def _print_accounts(accounts: Sequence[SeededAccount]) -> None:
 
 
 def _print_records(records: Sequence[SeededRecord]) -> None:
-    rows = [[record.kind, record.document, _status(record.created)] for record in records]
-    _print_table(["Tipo", "Documento", "Estado"], rows)
+    rows = [[record.kind, record.label, _status(record.created)] for record in records]
+    _print_table(["Tipo", "Registro", "Estado"], rows)
 
 
 def _seed_demo(session: Session, args: argparse.Namespace) -> int:
@@ -101,7 +102,14 @@ def _seed_demo(session: Session, args: argparse.Namespace) -> int:
         # La primera cuenta de demostración es la del administrador.
         actor = accounts[0].user
         print()
-        _print_records([*seed_demo_clients(session, actor), *seed_demo_suppliers(session, actor)])
+        # Los servicios después de los proveedores: se buscan por el documento de su proveedor.
+        _print_records(
+            [
+                *seed_demo_clients(session, actor),
+                *seed_demo_suppliers(session, actor),
+                *seed_demo_tourist_services(session, actor),
+            ]
+        )
     return 0
 
 

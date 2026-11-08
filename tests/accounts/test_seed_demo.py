@@ -156,3 +156,12 @@ def test_with_demo_data_loads_clients_travelers_and_suppliers_once(session, seed
     assert min(counts) > 0
     assert (count(session, Client), count(session, Traveler), count(session, Supplier)) == counts
     assert "creado" not in capsys.readouterr().out.replace("omitido", "")
+
+
+def test_the_demo_data_report_names_each_service_and_its_supplier(session, seed_allowed, capsys):
+    cli.main(["seed-demo", "--with-demo-data"], session=session)
+
+    output = capsys.readouterr().out
+    assert "Registro" in output
+    assert "Habitación familiar (Hotel Demostración)" in output
+    assert "NIT 9000001114" in output
