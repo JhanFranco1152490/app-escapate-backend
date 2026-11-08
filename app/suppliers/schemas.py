@@ -20,32 +20,17 @@ from app.common.fields import (
     Email,
     InternationalPhone,
     SearchText,
+    fixed_choices,
     optional_document_number,
     optional_text,
     required_text,
+    same_error,
 )
 from app.common.schemas import InputSchema, OutputSchema, UserRef
 from app.suppliers.models import SupplierCategory, SupplierDocumentType
 
-_CATEGORY_CODES = tuple(member.value for member in SupplierCategory)
 _CONTACT_FIELDS = ("contact_phone", "contact_email")
 _CONTACT_REQUIRED = "Indica un teléfono o un correo de contacto."
-
-
-def _known_categories(value: Any) -> Any:
-    # Antes de convertir a enum: Pydantic marcaría el error en la posición de la lista
-    # ("categories.1") y el formulario no sabría en qué campo mostrarlo.
-    if isinstance(value, list) and any(item not in _CATEGORY_CODES for item in value):
-        raise PydanticCustomError("invalid_category", "No es una clasificación válida.")
-    return value
-
-
-def _ordered_categories(value: list[SupplierCategory]) -> list[SupplierCategory]:
-    if not value:
-        raise PydanticCustomError("required", "Elige al menos una clasificación.")
-    if len(set(value)) != len(value):
-        raise PydanticCustomError("repeated_category", "Hay una clasificación repetida.")
-    return sorted(value, key=_CATEGORY_CODES.index)
 
 
 def _blank_as_none(value: Any) -> Any:
@@ -63,15 +48,6 @@ def _contact_required(field: str) -> InitErrorDetails:
     )
 
 
-def _same_error(error: dict) -> InitErrorDetails:
-    # from_exception_data no reconoce por nombre los tipos de error propios del proyecto.
-    return InitErrorDetails(
-        type=PydanticCustomError(error["type"], error["msg"]),
-        loc=error["loc"],
-        input=error["input"],
-    )
-
-
 TradeName = Annotated[str, AfterValidator(required_text(150))]
 ContactName = Annotated[str, AfterValidator(required_text(150))]
 LegalName = Annotated[str, AfterValidator(optional_text(150))]
@@ -79,12 +55,12 @@ CoverageZone = Annotated[str, AfterValidator(optional_text(150))]
 ContactRole = Annotated[str, AfterValidator(optional_text(80))]
 PaymentTerms = Annotated[str, AfterValidator(optional_text(500))]
 SupplierNotes = Annotated[str, AfterValidator(optional_text(2000))]
-Categories = Annotated[
-    list[SupplierCategory],
-    Field(max_length=len(SupplierCategory)),
-    BeforeValidator(_known_categories),
-    AfterValidator(_ordered_categories),
-]
+Categories = fixed_choices(
+    SupplierCategory,
+    unknown="No es una clasificación válida.",
+    repeated="Hay una clasificación repetida.",
+    required="Elige al menos una clasificación.",
+)
 ContactPhone = Annotated[InternationalPhone | None, BeforeValidator(_blank_as_none)]
 ContactEmail = Annotated[Email | None, BeforeValidator(_blank_as_none)]
 
@@ -131,7 +107,7 @@ class SupplierInput(InputSchema):
             if not contact_errors:
                 raise
             raise ValidationError.from_exception_data(
-                cls.__name__, [*map(_same_error, error.errors()), *contact_errors]
+                cls.__name__, [*map(same_error, error.errors()), *contact_errors]
             ) from None
         if contact_errors:
             raise ValidationError.from_exception_data(cls.__name__, contact_errors)

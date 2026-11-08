@@ -83,8 +83,18 @@ def error_response(
     )
 
 
+_REQUEST_PARTS = {"body", "query", "path"}
+
+
 def _field_name(location: tuple) -> str:
-    return str(location[-1]) if location else "non_field_errors"
+    # La ruta completa ("details.capacity") para que un campo anidado se pueda ubicar en el
+    # formulario. Sin los índices de lista: el error de un elemento se muestra en la lista.
+    if not location:
+        return "non_field_errors"
+    path = [str(part) for part in location if not isinstance(part, int)]
+    if path and path[0] in _REQUEST_PARTS:
+        path = path[1:]
+    return ".".join(path) if path else str(location[-1])
 
 
 def register_error_handlers(app: FastAPI) -> None:
