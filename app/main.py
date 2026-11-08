@@ -12,7 +12,8 @@ from app.core.config import Settings
 from app.core.config import settings as default_settings
 from app.core.rate_limit import limiter
 from app.core.security.csrf import CSRF_HEADER, csrf_protect
-from app.suppliers.router import router as suppliers_router
+from app.suppliers.suppliers_router import router as suppliers_router
+from app.suppliers.tourist_services_router import router as tourist_services_router
 
 _ERROR_REF = {"$ref": "#/components/schemas/ErrorResponse"}
 
@@ -42,6 +43,7 @@ def create_app(settings: Settings = default_settings) -> FastAPI:
     app.include_router(clients_router)
     app.include_router(travelers_router)
     app.include_router(suppliers_router)
+    app.include_router(tourist_services_router)
 
     @app.middleware("http")
     async def no_store(request: Request, call_next):
