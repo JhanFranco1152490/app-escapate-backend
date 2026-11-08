@@ -107,6 +107,7 @@ def test_the_list_answers_a_page_without_the_commercial_details(auth_client):
         "contact_email",
         "contact_phone",
         "is_active",
+        "active_service_count",
     }
 
 

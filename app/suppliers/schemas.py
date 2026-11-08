@@ -140,7 +140,9 @@ class SupplierFilters(BaseModel):
     status: SupplierStatusFilter = SupplierStatusFilter.ACTIVE
 
 
-class SupplierListItem(OutputSchema):
+class SupplierSummary(OutputSchema):
+    """Lo que comparten la fila de la lista y la ficha."""
+
     id: int
     trade_name: str
     legal_name: str | None
@@ -154,7 +156,12 @@ class SupplierListItem(OutputSchema):
     is_active: bool
 
 
-class SupplierDetail(SupplierListItem):
+class SupplierListItem(SupplierSummary):
+    # Lo arma la consulta de la lista; la ficha no lo trae.
+    active_service_count: int = 0
+
+
+class SupplierDetail(SupplierSummary):
     coverage_zone: str | None
     contact_role: str | None
     payment_terms: str | None
