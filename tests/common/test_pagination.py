@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, literal_column
 from sqlmodel import Session, select
 
-from app.common.pagination import Page, PageParams, page_params, paginate
+from app.common.pagination import Page, PageParams, map_results, page_params, paginate
 from app.core.db import get_session
 
 router = APIRouter(prefix="/api/test")
@@ -80,3 +80,12 @@ def test_links_keep_the_other_query_parameters(client):
 
     assert "total=45" in body["next"]
     assert "total=45" in body["previous"]
+
+
+def test_map_results_transforms_each_row_and_keeps_the_links():
+    page = Page(count=2, next="/api/x?page=2", previous=None, results=[(1, "a"), (2, "b")])
+
+    mapped = map_results(page, lambda row: f"{row[1]}{row[0]}")
+
+    assert mapped.results == ["a1", "b2"]
+    assert (mapped.count, mapped.next, mapped.previous) == (2, "/api/x?page=2", None)

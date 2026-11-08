@@ -1,5 +1,6 @@
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from fastapi import Query, Request
 from pydantic import BaseModel
@@ -46,6 +47,12 @@ def paginate(session: Session, statement: Select, params: PageParams, request: R
         previous=_page_url(request, params.page - 1) if params.page > 1 else None,
         results=list(rows),
     )
+
+
+def map_results(page: Page, transform: Callable[[Any], Any]) -> Page:
+    """La misma página con cada fila transformada: para las listas que traen una columna
+    calculada junto con el modelo y arman con las dos el esquema de salida."""
+    return page.model_copy(update={"results": [transform(row) for row in page.results]})
 
 
 def _page_url(request: Request, page: int) -> str:

@@ -4,7 +4,7 @@ from app.common.errors import NotFound
 from app.common.pagination import PageParams
 from app.suppliers.schemas import SupplierFilters
 from app.suppliers.services import supplier_queries
-from tests.factories import SupplierFactory, UserAccountFactory
+from tests.factories import SupplierFactory, TouristServiceFactory, UserAccountFactory
 from tests.http import fake_request
 from tests.statements import recorded_statements
 
@@ -175,3 +175,24 @@ def test_get_supplier_loads_who_registered_and_deactivated_it_in_the_same_query(
 def test_get_supplier_of_an_unknown_id_is_not_found(session):
     with pytest.raises(NotFound):
         supplier_queries.get_supplier(session, 999_999_999)
+
+
+def test_each_supplier_counts_only_its_active_services(session, suppliers):
+    TouristServiceFactory(supplier=suppliers["hotel"])
+    TouristServiceFactory(supplier=suppliers["hotel"], service_type="tours", attributes={})
+    TouristServiceFactory(supplier=suppliers["hotel"], inactive=True)
+
+    counts = {item.trade_name: item.active_service_count for item in search(session).results}
+
+    assert counts == {"Andes Tours": 0, "Árbol de Pan Guías": 0, "Hotel Caribe Azul": 2}
+
+
+def test_counting_services_does_not_add_queries(session, suppliers):
+    for supplier in suppliers.values():
+        TouristServiceFactory(supplier=supplier)
+    session.expire_all()
+
+    with recorded_statements(session) as statements:
+        search(session)
+
+    assert len(statements) == 2
