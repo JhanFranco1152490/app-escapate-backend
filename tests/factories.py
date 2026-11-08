@@ -1,12 +1,15 @@
 from datetime import date, datetime, timezone
+from decimal import Decimal
 
 import factory
 
 from app.accounts.models import Role, UserAccount
 from app.clients.models import Client, Traveler
+from app.common.dates import today
 from app.common.identifiers import nit_check_digit
 from app.core.security.passwords import hash_password
 from app.suppliers.models import Supplier
+from app.suppliers.tourist_service_models import ServiceRate, TouristService
 
 PASSWORD = "contrasena-de-prueba-123"
 # Argon2 es lento a propósito: un solo hash para todas las cuentas de prueba.
@@ -115,3 +118,41 @@ class SupplierFactory(BaseFactory):
     contact_name = "Contacto de prueba"
     contact_phone = factory.Sequence(lambda n: f"+57320{n:07d}")
     created_by = factory.SubFactory(UserAccountFactory)
+
+
+class TouristServiceFactory(BaseFactory):
+    """Un alojamiento activo con los atributos mínimos; `inactive=True` lo da desactivado."""
+
+    class Meta:
+        model = TouristService
+
+    class Params:
+        inactive = factory.Trait(
+            is_active=False,
+            deactivated_at=factory.LazyFunction(lambda: datetime.now(timezone.utc)),
+            deactivated_by=factory.SelfAttribute("created_by"),
+        )
+
+    supplier = factory.SubFactory(SupplierFactory)
+    service_type = "lodging"
+    name = factory.Sequence(lambda n: f"Servicio de prueba {n}")
+    destination = "Cartagena"
+    attributes = factory.LazyFunction(
+        lambda: {"lodging_kind": "hotel", "max_capacity": 2, "includes": []}
+    )
+    created_by = factory.SelfAttribute("supplier.created_by")
+
+
+class ServiceRateFactory(BaseFactory):
+    """Una tarifa en pesos, vigente desde hoy y sin fecha final."""
+
+    class Meta:
+        model = ServiceRate
+
+    tourist_service = factory.SubFactory(TouristServiceFactory)
+    name = factory.Sequence(lambda n: f"Tarifa de prueba {n}")
+    valid_from = factory.LazyFunction(today)
+    currency = "COP"
+    charge_unit = "per_night"
+    amount = factory.LazyFunction(lambda: Decimal("480000"))
+    created_by = factory.SelfAttribute("tourist_service.created_by")
