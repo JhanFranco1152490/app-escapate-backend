@@ -23,7 +23,26 @@ class ItemIn(BaseModel):
     name: str
 
 
+class Details(BaseModel):
+    capacity: int
+
+
+class NestedIn(BaseModel):
+    details: Details
+    tags: list[int] = []
+
+
 router = APIRouter(prefix="/api/test")
+
+
+@router.post("/nested")
+def create_nested(item: NestedIn):
+    return item
+
+
+@router.get("/search")
+def search(q: int):
+    return []
 
 
 @router.get("/api-error")
@@ -89,6 +108,31 @@ def test_missing_field_is_reported_by_name(client):
 
     assert response.status_code == 422
     assert list(response.json()["fields"]) == ["name"]
+
+
+def test_nested_field_is_reported_by_its_path(client):
+    response = client.post("/api/test/nested", json={"details": {"capacity": "x"}})
+
+    assert response.status_code == 422
+    assert list(response.json()["fields"]) == ["details.capacity"]
+
+
+def test_list_item_is_reported_on_the_list(client):
+    response = client.post("/api/test/nested", json={"details": {"capacity": 1}, "tags": [1, "x"]})
+
+    assert list(response.json()["fields"]) == ["tags"]
+
+
+def test_query_parameter_is_reported_by_name(client):
+    response = client.get("/api/test/search", params={"q": "x"})
+
+    assert list(response.json()["fields"]) == ["q"]
+
+
+def test_missing_body_keeps_the_body_as_field(client):
+    response = client.post("/api/test/items")
+
+    assert list(response.json()["fields"]) == ["body"]
 
 
 def test_unknown_route_is_not_found(client):

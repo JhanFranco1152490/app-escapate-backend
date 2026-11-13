@@ -108,6 +108,23 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         requires=("suppliers.view",),
         help="Registrar proveedores, editar sus datos y desactivarlos.",
     ),
+    "tourist_services.view": PermissionInfo(
+        section="Oferta turística",
+        group="Servicios y tarifas",
+        label="Ver",
+        description="Ver servicios y tarifas",
+        # Los servicios se consultan desde la ficha de su proveedor.
+        requires=("suppliers.view",),
+        help="Ver los servicios de cada proveedor, sus características y sus tarifas.",
+    ),
+    "tourist_services.manage": PermissionInfo(
+        section="Oferta turística",
+        group="Servicios y tarifas",
+        label="Gestionar",
+        description="Gestionar servicios y tarifas",
+        requires=("tourist_services.view",),
+        help="Registrar servicios, editarlos, desactivarlos y gestionar sus tarifas.",
+    ),
 }
 
 

@@ -6,11 +6,12 @@ validó. Los mensajes de error van en español, listos para mostrarse en el form
 
 import unicodedata
 from collections.abc import Callable
-from typing import Annotated
+from enum import StrEnum
+from typing import Annotated, Any
 
 from email_validator import EmailNotValidError, validate_email
-from pydantic import AfterValidator, Field, StringConstraints, ValidationInfo
-from pydantic_core import PydanticCustomError
+from pydantic import AfterValidator, BeforeValidator, Field, StringConstraints, ValidationInfo
+from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.common.identifiers import (
     has_wrong_nit_check_digit,
@@ -113,6 +114,46 @@ def optional_document_number(value: str | None, info: ValidationInfo) -> str | N
     if document_type is None:
         raise PydanticCustomError("required", "Elige también el tipo de documento.")
     return valid_document_number(document_type, number)
+
+
+def fixed_choices(
+    choices: type[StrEnum], *, unknown: str, repeated: str, required: str | None = None
+) -> Any:
+    """Una lista de códigos de una lista fija: sin repetidos y en el orden del enum, sin
+    importar cómo llegó. Con `required`, la lista vacía es un error con ese mensaje."""
+    codes = tuple(member.value for member in choices)
+
+    def known(value: Any) -> Any:
+        # Antes de convertir al enum: Pydantic marcaría el error en la posición de la lista
+        # y el formulario no sabría en qué campo mostrarlo.
+        if isinstance(value, list) and any(item not in codes for item in value):
+            raise PydanticCustomError("invalid_choice", unknown)
+        return value
+
+    def ordered(value: list[StrEnum]) -> list[StrEnum]:
+        if not value and required is not None:
+            raise PydanticCustomError("required", required)
+        if len(set(value)) != len(value):
+            raise PydanticCustomError("repeated_choice", repeated)
+        return sorted(value, key=codes.index)
+
+    return Annotated[
+        list[choices],
+        Field(max_length=len(codes)),
+        BeforeValidator(known),
+        AfterValidator(ordered),
+    ]
+
+
+def same_error(error: dict) -> InitErrorDetails:
+    """Un error ya reportado por Pydantic, listo para juntarlo con otros en un solo
+    `ValidationError`: `from_exception_data` no reconoce por nombre los tipos de error propios
+    del proyecto."""
+    return InitErrorDetails(
+        type=PydanticCustomError(error["type"], error["msg"]),
+        loc=error["loc"],
+        input=error["input"],
+    )
 
 
 PersonName = Annotated[str, AfterValidator(required_text(NAME_MAX_LENGTH))]

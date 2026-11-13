@@ -52,7 +52,8 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   └── security/      passwords, tokens (JWT), cookies, csrf, network (client_ip)
   ├── common/            transversal, sin modelos de dominio:
   │   ├── errors.py      ApiError, InvalidFields (422 con `fields`), FieldError (un
-  │   │                  campo con un mensaje fijo), manejadores
+  │   │                  campo con un mensaje fijo), manejadores; la llave de `fields` es
+  │   │                  la ruta del campo (`attributes.max_capacity`)
   │   ├── database.py    database_conflicts: restricción de la base -> error de campo
   │   ├── columns.py     primary_key, foreign_key, timestamp, in_values (CHECK de un enum),
   │   │                  version_column y versioned (bloqueo optimista)
@@ -60,21 +61,25 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   │                  UserRef
   │   ├── fields.py      PersonName, Email, InternationalPhone, City, SearchText, RecordId,
   │   │                  validadores de texto y del número de documento
-  │   │                  (valid_document_number, optional_document_number)
+  │   │                  (valid_document_number, optional_document_number),
+  │   │                  fixed_choices (lista de códigos de un enum, sin repetidos y en su
+  │   │                  orden) y same_error (juntar errores en un solo ValidationError)
   │   ├── identifiers.py documento (CC, CE, PPT, PA, TI, RC, NIT con su dígito, FOREIGN) y
   │   │                  correo
   │   ├── phones.py      teléfono internacional a E.164 (phonenumbers, Colombia por defecto)
   │   ├── search.py      folded, has_every_word, starts_with, contains (sin tildes, LIKE
   │   │                  con los comodines escapados)
   │   ├── countries.py   códigos ISO 3166-1 alfa-2
-  │   ├── seeding.py     seed_if_new: carga de demostración repetible (omite por documento)
-  │   └── pagination, money, dates (today, age_on), email
+  │   ├── seeding.py     seed_if_new: carga de demostración repetible (omite lo que cumple
+  │   │                  una condición; same_document, la de "mismo documento")
+  │   └── pagination (paginate, map_results), money, dates (today, age_on), email
   └── <dominio>/         models.py, schemas.py, services/, *_router.py, templates/email/
   tests/
   ├── conftest.py        base de prueba, sesión con rollback, app, client, csrf_client
   ├── database.py        crear/borrar la base de prueba y su protección de nombre
   ├── http.py            attach_csrf(client)
   ├── factories.py       BaseFactory (factory-boy) y las fábricas de cada dominio
+  │                      (TouristServiceFactory con el rasgo `inactive`, ServiceRateFactory)
   ├── concurrency.py     wait_until_blocked(engine, n)
   ├── statements.py      recorded_statements(session): las consultas que manda un bloque
   └── <dominio>/test_*.py
@@ -148,14 +153,19 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     staging, nunca en producción). Crea cuatro cuentas ficticias, una por rol sembrado
     (`demo_data.py`; las contraseñas están en el código a propósito: son cuentas inventadas
     que solo existen en staging) y, con `--with-demo-data`, unos pocos clientes, viajeros y
-    proveedores ficticios (`demo_data.py` de `clients` y `suppliers`, cargados con sus
-    servicios de alta para respetar sus validaciones). Reglas:
-    - Repetible: lo que ya existe (mismo documento) se omite y se informa, no falla ni
-      duplica. Se mira antes de crear y no se atrapa el error del servicio, porque un viajero
-      repetido puede fallar por varias reglas a la vez.
+    proveedores ficticios, con servicios turísticos y tarifas (`demo_data.py` de `clients` y
+    `suppliers`, cargados con sus servicios de alta para respetar sus validaciones). Reglas:
+    - Repetible: lo que ya existe se omite y se informa, no falla ni duplica. Clientes,
+      viajeros y proveedores se reconocen por su documento (`same_document`); un servicio,
+      por su proveedor y su nombre, y se omite junto con sus tarifas (sus fechas son
+      relativas a hoy: cargarlas otro día agregaría tarifas nuevas). Se mira antes de crear
+      y no se atrapa el error del servicio, porque un viajero repetido puede fallar por
+      varias reglas a la vez.
     - Los roles se buscan todos antes de crear nada (el Administrador por `is_protected`, los
       demás por nombre): si falta uno no queda una carga a medias.
-    - La salida es una tabla (rol, documento, correo, estado), nunca contraseñas.
+    - La salida son dos tablas, nunca contraseñas: las cuentas (rol, documento, correo,
+      estado) y los registros (tipo, registro, estado; el registro es el documento, o el
+      nombre y el proveedor en un servicio).
     - Los datos de demostración usan al Administrador de demostración como autor.
   - Gestión de usuarios (`users_router.py`, permisos `users.view` y `users.manage`, que la
     migración asigna al rol Administrador): `services/user_queries.py` lee (lista con
@@ -238,7 +248,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   Encargado de proveedores, y "Ver" al Asesor comercial y al Operativo.
   `services/supplier_queries.py` lee (lista con búsqueda y filtros, y ficha),
   `services/supplier_management.py` escribe (alta, edición, desactivar y activar) y el
-  router es `router.py` (`/api/suppliers`). Reglas que no se repiten en otro lado:
+  router es `suppliers_router.py` (`/api/suppliers`). Reglas que no se repiten en otro lado:
   - La clasificación es una o varias categorías de `SupplierCategory`, guardadas en un
     arreglo de PostgreSQL (`categories`, con el `ARRAY` de `sqlalchemy.dialects.postgresql`:
     el genérico no sabe filtrar con `@>`). Se devuelven sin repetidos y en el orden del enum,
@@ -256,7 +266,51 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - La comisión es solo de referencia (`numeric(5,2)`, viaja como texto `"10.00"`) y
     `agreement_expired` se calcula con la fecha de Bogotá; ninguno de los dos desactiva
     nada.
-  - La lista no trae notas, condiciones de pago ni comisión.
+  - La lista no trae notas, condiciones de pago ni comisión, y sí `active_service_count`
+    (servicios activos, con una subconsulta: el número de consultas no crece con las filas).
+  - **Servicios turísticos y tarifas** (`TouristService` y `ServiceRate`, en
+    `tourist_service_models.py`, aparte de `models.py` para evitar un import circular con
+    `service_types.py`). Viven en este dominio y no en uno propio porque la lista de
+    proveedores cuenta servicios: en dos dominios sería un ciclo. Permisos
+    `tourist_services.view` (requiere `suppliers.view`) y `tourist_services.manage`; la
+    migración da los dos al rol protegido y al Encargado de proveedores, y "Ver" al Asesor
+    comercial y al Operativo. Las tarifas no tienen permiso propio. Las listas fijas (tipos,
+    monedas, unidades de cobro y opciones de cada tipo) viven solo en `service_types.py`; los
+    campos de cada tipo, en `service_attributes.py`; los esquemas, en
+    `tourist_service_schemas.py` y `rate_schemas.py`; lee y escribe
+    `services/tourist_service_queries.py`, `tourist_service_management.py`,
+    `rate_queries.py` y `rate_management.py`, y el router es `tourist_services_router.py`
+    (`/api/suppliers/{id}/tourist-services` y `/api/tourist-services/...`). Reglas que no se
+    repiten en otro lado:
+    - El tipo del servicio es una de las clasificaciones del proveedor (`ServiceType =
+      SupplierCategory`, el mismo enum). Solo se revisa al crear: quitarle la clasificación
+      al proveedor después no toca sus servicios.
+    - Proveedor y tipo no cambian después de crear (cambiar el tipo en un `PUT` es un error
+      en `service_type`). Un proveedor inactivo no recibe servicios nuevos ni se le activa
+      uno (`409 supplier_inactive`), pero sus servicios se editan.
+    - Los campos propios de cada tipo van en `attributes` (`jsonb`; la base solo exige que sea
+      un objeto). Se validan con el modelo de su `service_type` (`ATTRIBUTE_MODELS`) dentro
+      de un `model_validator(mode="wrap")`, no con una unión discriminada del cuerpo, que
+      metería el tipo en la ruta del error: así cada error sale como
+      `attributes.<campo>`, junto con los del resto del cuerpo. Se guarda siempre
+      `stored_attributes(...)` (validado y sin los opcionales vacíos), y la columna se
+      reemplaza entera al editar, nunca se modifica en su lugar. El OpenAPI muestra
+      `attributes` como la unión de los ocho modelos.
+    - Un servicio no se borra: se desactiva y se activa como un proveedor. Un servicio
+      inactivo no recibe tarifas nuevas (`409 service_inactive`), pero las que tiene se
+      editan y se borran. Las tarifas sí se borran (`DELETE` con `expected_version` en la
+      query): lo que las use después copia su valor.
+    - Una tarifa está en COP o USD, en la moneda del proveedor y **sin conversión**. COP en
+      pesos enteros y USD con centavos, los dos en `numeric(14,2)` (un `CHECK` impide
+      centavos en COP), y `amount` viaja como texto con los decimales de su moneda
+      (`"710000"`, `"1250.50"`).
+    - La unidad de cobro sale de `CHARGE_UNITS[tipo]` y se revisa en el servicio de tarifas,
+      que es donde se conoce el tipo (error en `charge_unit`). Las vigencias se pueden
+      superponer; el estado (`upcoming`, `current`, `expired`) se calcula con la fecha de
+      Bogotá (`validity_status`), y la lista va vigentes, próximas y vencidas.
+    - Crear un servicio y activarlo bloquean la fila del proveedor (`FOR UPDATE`), y crear
+      una tarifa la del servicio, para que una desactivación simultánea no deje algo nuevo
+      colgando de un registro inactivo.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
@@ -272,6 +326,8 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
 - Todo bajo `/api/`, sin barra final, salvo `/health`.
 - **Errores:** siempre una subclase de `ApiError` (`app/common/errors.py`). Los manejadores
   arman `{"detail", "code", "fields"}`; nunca se devuelve un `JSONResponse` de error a mano.
+  La llave de `fields` es la ruta del campo sin `body`/`query`/`path` ni índices de lista
+  (`name`, `categories`, `attributes.max_capacity`).
   El 422 de FastAPI sale como `validation_error`, el `StaleDataError` del bloqueo optimista
   como `409 stale_version` y el límite de solicitudes como `429 throttled`. Un 500 se
   registra solo con la clase de la excepción y su traza, nunca con su mensaje.
@@ -307,7 +363,11 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   declaradas, ver "Estructura por dominio").
 - **Dinero en pesos enteros, sin centavos, nunca `float`.** Lo que produce fracciones
   (márgenes, comisiones) se calcula con `Decimal` y se redondea al peso solo con
-  `app/common/money.py` (`round_to_peso`, `apply_percentage`).
+  `app/common/money.py` (`round_to_peso`, `apply_percentage`). **Única excepción:** las
+  tarifas en dólares de los servicios turísticos (`service_rate.amount`, `numeric(14,2)`)
+  guardan centavos y viajan como texto decimal; en COP siguen siendo pesos enteros. Pasar
+  un valor en USD a COP es una conversión que hace quien la necesite (la cotización), con
+  `money.py`.
 - **Elegir la mejor opción, no la librería por defecto.** Ante una necesidad técnica se
   comparan las alternativas reales (lo que trae FastAPI/SQLModel, una librería, código
   propio) y se deja escrito lo elegido y lo descartado.
@@ -329,6 +389,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   sembrados (`administrator_role` buscado por `is_protected`), y `helpers.py` trae los datos
   de una persona nueva (`NEW_USER`), `second_client(app)` para simular otro navegador y
   `signed_in(app, session, user)` para abrir en él la sesión de una persona.
+  En `tests/suppliers/`, `samples.py` trae atributos válidos de cada tipo de servicio.
   `wait_until_blocked(engine, n)` (`tests/concurrency.py`) espera a que las transacciones de
   una prueba de concurrencia queden detenidas en un bloqueo. Un servicio que pagina
   se prueba con `fake_request()` de `tests/http.py`.
@@ -379,7 +440,8 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 Antes de modelar solicitudes, cotizaciones y ventas hay que resolver las preguntas abiertas
 del modelo de datos del workspace (`docs/CONTEXTO.md`) con el agente `arquitecto`. Ya
 existen las cuentas, roles y sesiones ("Cuentas y acceso"), los clientes y viajeros
-("Clientes y viajeros") y los proveedores ("Proveedores").
+("Clientes y viajeros") y los proveedores con sus servicios turísticos y tarifas
+("Proveedores").
 
 ## Stack
 

@@ -16,7 +16,7 @@ from app.clients.models import Client, Traveler
 from app.clients.schemas import ClientCreate, TravelerCreate
 from app.clients.services.client_management import create_client
 from app.clients.services.traveler_management import create_traveler
-from app.common.seeding import SeededRecord, seed_if_new
+from app.common.seeding import SeededRecord, same_document, seed_if_new
 
 
 def _reference_client_id(session: Session) -> int:
@@ -41,8 +41,8 @@ def seed_demo_clients(session: Session, actor: UserAccount) -> list[SeededRecord
             session,
             Client,
             "Cliente",
-            data["document_type"],
-            data["document_number"],
+            f"{data['document_type']} {data['document_number']}",
+            same_document(Client, data["document_type"], data["document_number"]),
             partial(create_client, session, actor, ClientCreate(**data, data_consent=True)),
         )
         for data in DEMO_CLIENTS
@@ -53,8 +53,10 @@ def seed_demo_clients(session: Session, actor: UserAccount) -> list[SeededRecord
             session,
             Traveler,
             "Viajero",
-            traveler.fields["document_type"],
-            traveler.fields["document_number"],
+            f"{traveler.fields['document_type']} {traveler.fields['document_number']}",
+            same_document(
+                Traveler, traveler.fields["document_type"], traveler.fields["document_number"]
+            ),
             partial(_create_traveler, session, actor, traveler),
         )
         for traveler in DEMO_TRAVELERS

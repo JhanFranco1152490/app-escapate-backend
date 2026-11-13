@@ -270,6 +270,7 @@ def test_changing_a_role_from_the_api_applies_to_the_open_session(
         "clients.manage",
         "clients.view",
         "suppliers.view",
+        "tourist_services.view",
         "travelers.manage",
         "travelers.view",
     ]

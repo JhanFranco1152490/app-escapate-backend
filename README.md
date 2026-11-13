@@ -31,6 +31,11 @@ Los proveedores turísticos se gestionan en `/api/suppliers`. El Encargado de pr
 puede registrarlos, editarlos, desactivarlos y activarlos; el Asesor comercial y el
 Operativo solo verlos.
 
+Los servicios turísticos de cada proveedor se gestionan en
+`/api/suppliers/{id}/tourist-services` y `/api/tourist-services`, junto con sus tarifas
+(en COP o USD, sin conversión). El Encargado de proveedores puede registrarlos, editarlos,
+desactivarlos y gestionar sus tarifas; el Asesor comercial y el Operativo solo verlos.
+
 Con `EMAIL_BACKEND=console` (el valor local) los correos no se envían: se imprimen en la
 terminal del backend, con el enlace de recuperación o de invitación listo para copiar.
 
