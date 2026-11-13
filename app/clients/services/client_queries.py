@@ -18,13 +18,14 @@ _PHONE_SEPARATORS = re.compile(r"[\s\-().+]")
 _PHONE_FRAGMENT = re.compile(r"[0-9]{3,}\Z")
 
 # En una empresa los nombres son nulos, y "nulo || ' ' || nulo" también: queda la razón social.
-_display_name = func.coalesce(
+# Público: otros dominios buscan por el nombre del cliente con la misma expresión.
+display_name = func.coalesce(
     col(Client.first_name) + " " + col(Client.last_name), col(Client.business_name)
 )
 
 
 def _search(text: str) -> ColumnElement[bool]:
-    conditions = name_or_document(_display_name, col(Client.document_number), text)
+    conditions = name_or_document(display_name, col(Client.document_number), text)
     conditions.append(contains(col(Client.email), text.lower()))
     phone = _PHONE_SEPARATORS.sub("", text)
     if _PHONE_FRAGMENT.match(phone):
@@ -40,7 +41,7 @@ def list_clients(
         statement = statement.where(_search(filters.q))
     if filters.client_type is not None:
         statement = statement.where(Client.client_type == filters.client_type)
-    statement = statement.order_by(folded(_display_name), Client.id)
+    statement = statement.order_by(folded(display_name), Client.id)
     return paginate(session, statement, params, request)
 
 
