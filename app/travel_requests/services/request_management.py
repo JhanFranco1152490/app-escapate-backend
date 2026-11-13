@@ -61,12 +61,16 @@ def _check_references(
         raise InvalidFields(fields=fields)
 
 
-def _current(session: Session, request_id: int, expected_version: int) -> TravelRequest:
-    request = get_request(session, request_id)
+def _check_version(request: TravelRequest, expected_version: int) -> None:
     # La revisión da el error claro; si otra petición guarda entre esta lectura y el commit,
     # el bloqueo optimista del modelo responde lo mismo.
     if expected_version != request.version:
         raise StaleVersion()
+
+
+def _current(session: Session, request_id: int, expected_version: int) -> TravelRequest:
+    request = get_request(session, request_id)
+    _check_version(request, expected_version)
     return request
 
 
@@ -76,7 +80,8 @@ def _open(session: Session, request_id: int, expected_version: int) -> TravelReq
     # recargar se encontraría con el mismo bloqueo.
     if request.status == TravelRequestStatus.CLOSED:
         raise TravelRequestClosed()
-    return _current(session, request_id, expected_version)
+    _check_version(request, expected_version)
+    return request
 
 
 def _save(session: Session, request: TravelRequest) -> TravelRequest:
