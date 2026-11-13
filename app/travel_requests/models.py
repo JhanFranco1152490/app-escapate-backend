@@ -16,8 +16,8 @@ from app.common.columns import (
     version_column,
     versioned,
 )
-
-CODE_PREFIX = "SOL-"
+from app.common.dates import BOGOTA, today
+from app.travel_requests.codes import format_code
 
 
 class TravelRequestStatus(StrEnum):
@@ -59,10 +59,6 @@ class CloseReason(StrEnum):
     BOUGHT_ELSEWHERE = "bought_elsewhere"
     DUPLICATE = "duplicate"
     OTHER = "other"
-
-
-def format_code(request_id: int) -> str:
-    return f"{CODE_PREFIX}{request_id:04d}"
 
 
 _TRIP_TYPES = ", ".join(f"'{member.value}'" for member in TripType)
@@ -166,3 +162,8 @@ class TravelRequest(SQLModel, table=True):
     @property
     def code(self) -> str:
         return format_code(self.id)
+
+    @property
+    def waiting_days(self) -> int:
+        """Días calendario de Bogotá desde que se registró."""
+        return (today() - self.created_at.astimezone(BOGOTA).date()).days
