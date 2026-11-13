@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import factory
@@ -10,6 +10,7 @@ from app.common.identifiers import nit_check_digit
 from app.core.security.passwords import hash_password
 from app.suppliers.models import Supplier
 from app.suppliers.tourist_service_models import ServiceRate, TouristService
+from app.travel_requests.models import TravelRequest
 
 PASSWORD = "contrasena-de-prueba-123"
 # Argon2 es lento a propósito: un solo hash para todas las cuentas de prueba.
@@ -156,3 +157,36 @@ class ServiceRateFactory(BaseFactory):
     charge_unit = "per_night"
     amount = factory.LazyFunction(lambda: Decimal("480000"))
     created_by = factory.SelfAttribute("tourist_service.created_by")
+
+
+class TravelRequestFactory(BaseFactory):
+    """Una solicitud nueva con fechas exactas dentro de un mes; `flexible=True` la da con un
+    período flexible y `closed=True`, cerrada porque el cliente desistió."""
+
+    class Meta:
+        model = TravelRequest
+
+    class Params:
+        flexible = factory.Trait(
+            date_mode="flexible",
+            departure_date=None,
+            window_start=factory.LazyFunction(lambda: today() + timedelta(days=30)),
+            window_end=factory.LazyFunction(lambda: today() + timedelta(days=60)),
+        )
+        closed = factory.Trait(
+            status="closed",
+            close_reason="client_declined",
+            closed_at=factory.LazyFunction(lambda: datetime.now(timezone.utc)),
+            closed_by=factory.SelfAttribute("created_by"),
+        )
+
+    client = factory.SubFactory(ClientFactory)
+    destination = "San Andrés"
+    date_mode = "exact"
+    departure_date = factory.LazyFunction(lambda: today() + timedelta(days=30))
+    adults = 2
+    minors = 0
+    trip_types = factory.LazyFunction(list)
+    status = "new"
+    created_by = factory.SelfAttribute("client.created_by")
+    assigned_to = factory.SelfAttribute("created_by")

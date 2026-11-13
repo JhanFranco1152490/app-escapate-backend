@@ -93,6 +93,24 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         requires=("travelers.view",),
         help="Registrar viajeros y editar sus datos.",
     ),
+    "travel_requests.view": PermissionInfo(
+        section="Comercial",
+        group="Solicitudes",
+        label="Ver",
+        description="Ver solicitudes de viaje",
+        help="Ver las solicitudes de viaje, las pendientes de cotización y consultar su ficha.",
+    ),
+    "travel_requests.manage": PermissionInfo(
+        section="Comercial",
+        group="Solicitudes",
+        label="Gestionar",
+        description="Gestionar solicitudes de viaje",
+        requires=("travel_requests.view",),
+        help=(
+            "Registrar solicitudes de viaje, editarlas, reasignarlas, cerrarlas y reabrirlas. "
+            "Quien tiene este permiso puede ser asesor responsable."
+        ),
+    ),
     "suppliers.view": PermissionInfo(
         section="Oferta turística",
         group="Proveedores",
