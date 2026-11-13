@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.suppliers.services.demo_suppliers import seed_demo_suppliers
 from app.suppliers.services.demo_tourist_services import seed_demo_tourist_services
+from app.travel_requests.services.demo_travel_requests import seed_demo_travel_requests
 
 
 def _create_admin(session: Session, args: argparse.Namespace) -> int:
@@ -102,12 +103,14 @@ def _seed_demo(session: Session, args: argparse.Namespace) -> int:
         # La primera cuenta de demostración es la del administrador.
         actor = accounts[0].user
         print()
-        # Los servicios después de los proveedores: se buscan por el documento de su proveedor.
+        # Cada carga después de la que le da sus referencias: los servicios buscan a su
+        # proveedor, y las solicitudes a su cliente, por el documento.
         _print_records(
             [
                 *seed_demo_clients(session, actor),
                 *seed_demo_suppliers(session, actor),
                 *seed_demo_tourist_services(session, actor),
+                *seed_demo_travel_requests(session, actor),
             ]
         )
     return 0
