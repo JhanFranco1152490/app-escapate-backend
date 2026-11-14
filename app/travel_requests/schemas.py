@@ -19,7 +19,7 @@ from app.travel_requests.models import (
     CloseReason,
     DateMode,
     TravelRequestStatus,
-    TripType,
+    TravelType,
 )
 
 MAX_BUDGET = 999_999_999_999
@@ -34,8 +34,8 @@ CloseNote = Annotated[str, AfterValidator(optional_text(300))]
 # Estricto: 6000000.5 o "6000000" son un error, no un valor que se redondea o se convierte.
 Budget = Annotated[int, Field(strict=True, ge=1, le=MAX_BUDGET)]
 Nights = Annotated[int, Field(ge=1, le=365)]
-TripTypes = fixed_choices(
-    TripType, unknown="No es un tipo de viaje válido.", repeated="Hay un tipo de viaje repetido."
+TravelTypes = fixed_choices(
+    TravelType, unknown="No es un tipo de viaje válido.", repeated="Hay un tipo de viaje repetido."
 )
 
 
@@ -85,7 +85,7 @@ class TravelRequestInput(InputSchema):
     minors: int = Field(ge=0, le=99)
     budget_min: Budget | None = None
     budget_max: Budget | None = None
-    trip_types: TripTypes = []
+    trip_types: TravelTypes = []
     accommodation_category: AccommodationCategory | None = None
     assigned_to_id: RecordId
     notes: Notes | None = None
@@ -236,7 +236,7 @@ class TravelRequestDetail(TravelRequestListItem):
     origin: str | None
     budget_min: int | None
     budget_max: int | None
-    trip_types: list[TripType]
+    trip_types: list[TravelType]
     accommodation_category: AccommodationCategory | None
     notes: str | None
     close_reason: CloseReason | None

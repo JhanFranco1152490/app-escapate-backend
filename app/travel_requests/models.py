@@ -36,7 +36,7 @@ class DateMode(StrEnum):
     FLEXIBLE = "flexible"
 
 
-class TripType(StrEnum):
+class TravelType(StrEnum):
     LEISURE = "leisure"
     FAMILY = "family"
     HONEYMOON = "honeymoon"
@@ -61,7 +61,7 @@ class CloseReason(StrEnum):
     OTHER = "other"
 
 
-_TRIP_TYPES = ", ".join(f"'{member.value}'" for member in TripType)
+_TRIP_TYPES = ", ".join(f"'{member.value}'" for member in TravelType)
 
 
 class TravelRequest(SQLModel, table=True):
