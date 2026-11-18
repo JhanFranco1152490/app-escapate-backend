@@ -74,12 +74,16 @@ def _current(session: Session, request_id: int, expected_version: int) -> Travel
     return request
 
 
+def ensure_open(request: TravelRequest) -> None:
+    if request.status == TravelRequestStatus.CLOSED:
+        raise TravelRequestClosed()
+
+
 def _open(session: Session, request_id: int, expected_version: int) -> TravelRequest:
     request = get_request(session, request_id)
     # Cerrada antes que versión vieja: quien vea la solicitud cerrada sabe qué hacer, y al
     # recargar se encontraría con el mismo bloqueo.
-    if request.status == TravelRequestStatus.CLOSED:
-        raise TravelRequestClosed()
+    ensure_open(request)
     _check_version(request, expected_version)
     return request
 
