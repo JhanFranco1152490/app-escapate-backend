@@ -5,9 +5,14 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
+from sqlmodel import select
 
-from app.travel_requests.models import TravelRequest
-from tests.factories import TravelRequestFactory
+from app.travel_requests.models import TravelRequest, TravelRequestTraveler
+from tests.factories import (
+    TravelerFactory,
+    TravelRequestFactory,
+    TravelRequestTravelerFactory,
+)
 
 
 @contextmanager
@@ -200,3 +205,45 @@ def test_two_identical_requests_of_the_same_client_are_two_requests(session):
     )
 
     assert first.id != second.id
+
+
+def test_a_traveler_is_associated_with_who_and_when(session):
+    link = TravelRequestTravelerFactory()
+    session.expire(link)
+
+    assert link.traveler is not None
+    assert link.added_by is not None
+    assert link.added_at is not None
+
+
+def test_a_traveler_is_associated_only_once_with_the_same_request(session):
+    link = TravelRequestTravelerFactory()
+
+    with _violates("travel_request_traveler_pkey"):
+        session.execute(
+            text(
+                "INSERT INTO travel_request_traveler "
+                "(travel_request_id, traveler_id, added_by_id) VALUES (:r, :t, :u)"
+            ),
+            {"r": link.travel_request_id, "t": link.traveler_id, "u": link.added_by_id},
+        )
+
+
+def test_the_same_traveler_can_be_in_several_requests(session):
+    traveler = TravelerFactory()
+    TravelRequestTravelerFactory(traveler=traveler)
+    TravelRequestTravelerFactory(traveler=traveler)
+
+    links = session.exec(
+        select(TravelRequestTraveler).where(TravelRequestTraveler.traveler_id == traveler.id)
+    ).all()
+    assert len(links) == 2
+
+
+@pytest.mark.parametrize("target", ["traveler", "travel_request"])
+def test_an_associated_traveler_or_request_cannot_be_deleted(session, target):
+    link = TravelRequestTravelerFactory()
+
+    session.delete(getattr(link, target))
+    with pytest.raises(IntegrityError):
+        session.flush()
