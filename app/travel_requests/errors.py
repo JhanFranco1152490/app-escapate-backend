@@ -3,6 +3,7 @@ from app.common.errors import ApiError, FieldError
 UNKNOWN_CLIENT = "El cliente no existe."
 INELIGIBLE_ADVISOR = "Elige un asesor activo que pueda gestionar solicitudes."
 DATE_IN_PAST = "La fecha ya pasó."
+UNKNOWN_TRAVELER = "Uno de los viajeros no existe."
 
 
 class TravelRequestClosed(ApiError):

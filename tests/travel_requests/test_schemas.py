@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.travel_requests.schemas import (
     RequestSort,
+    RequestTravelersAdd,
     StatusFilter,
     TravelRequestClose,
     TravelRequestCreate,
@@ -225,3 +226,36 @@ def test_filters_default_to_everything_most_recent_first():
     assert filters.status is None
     assert filters.sort == RequestSort.RECENT
     assert TravelRequestFilters(status="pending").status == StatusFilter.PENDING
+
+
+@pytest.mark.parametrize("count", [1, 50])
+def test_one_to_fifty_travelers_are_associated_at_once(count):
+    data = RequestTravelersAdd(traveler_ids=list(range(1, count + 1)))
+
+    assert len(data.traveler_ids) == count
+
+
+@pytest.mark.parametrize(
+    "traveler_ids, message",
+    [
+        pytest.param([], "Elige al menos un viajero.", id="empty"),
+        pytest.param(list(range(1, 52)), "Máximo 50 viajeros a la vez.", id="too-many"),
+        pytest.param([3, 7, 3], "Hay viajeros repetidos.", id="repeated"),
+    ],
+)
+def test_an_invalid_list_of_travelers_is_rejected_in_spanish(traveler_ids, message):
+    with pytest.raises(ValidationError) as error:
+        RequestTravelersAdd(traveler_ids=traveler_ids)
+
+    assert error.value.errors()[0]["msg"] == message
+
+
+@pytest.mark.parametrize("traveler_id", [0, -1])
+def test_a_traveler_id_must_be_positive(traveler_id):
+    with pytest.raises(ValidationError):
+        RequestTravelersAdd(traveler_ids=[traveler_id])
+
+
+def test_unknown_fields_are_rejected_when_associating():
+    with pytest.raises(ValidationError):
+        RequestTravelersAdd(traveler_ids=[1], expected_version=1)

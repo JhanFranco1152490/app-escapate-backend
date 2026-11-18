@@ -5,6 +5,7 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
+from app.clients.models import TravelerDocumentType
 from app.common.fields import (
     RecordId,
     SearchText,
@@ -264,3 +265,38 @@ class TravelRequestSummary(BaseModel):
 class AdvisorOption(OutputSchema):
     id: int
     full_name: str
+
+
+MAX_TRAVELERS_AT_ONCE = 50
+
+
+def _traveler_ids(value: list[int]) -> list[int]:
+    if not value:
+        raise _error("required", "Elige al menos un viajero.")
+    if len(value) > MAX_TRAVELERS_AT_ONCE:
+        raise _error("too_long", f"Máximo {MAX_TRAVELERS_AT_ONCE} viajeros a la vez.")
+    if len(set(value)) != len(value):
+        raise _error("repeated_choice", "Hay viajeros repetidos.")
+    return value
+
+
+class RequestTravelersAdd(InputSchema):
+    traveler_ids: Annotated[list[RecordId], AfterValidator(_traveler_ids)]
+
+
+class RequestTraveler(BaseModel):
+    """Un viajero de la solicitud: lo que la lista necesita, sin nacionalidad, fecha de
+    nacimiento ni notas."""
+
+    id: int
+    first_name: str
+    last_name: str
+    full_name: str
+    document_type: TravelerDocumentType
+    document_number: str
+    age: int
+    is_minor: bool
+    # Solo si es el cliente de esta solicitud, no de otra.
+    is_the_client: bool
+    added_at: datetime
+    added_by: UserRef
