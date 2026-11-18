@@ -6,5 +6,6 @@ import app.accounts.models  # noqa: F401
 import app.clients.models  # noqa: F401
 import app.suppliers.models  # noqa: F401
 import app.suppliers.tourist_service_models  # noqa: F401
+import app.travel_requests.models  # noqa: F401
 
 metadata = SQLModel.metadata

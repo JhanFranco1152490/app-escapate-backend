@@ -36,10 +36,15 @@ Los servicios turísticos de cada proveedor se gestionan en
 (en COP o USD, sin conversión). El Encargado de proveedores puede registrarlos, editarlos,
 desactivarlos y gestionar sus tarifas; el Asesor comercial y el Operativo solo verlos.
 
+Las solicitudes de viaje de los clientes se gestionan en `/api/travel-requests` (con
+`?status=pending&sort=oldest`, las que esperan cotización, de la más antigua a la más
+reciente). El Asesor comercial puede registrarlas, editarlas, reasignarlas, cerrarlas y
+reabrirlas; el Operativo solo verlas.
+
 Con `EMAIL_BACKEND=console` (el valor local) los correos no se envían: se imprimen en la
 terminal del backend, con el enlace de recuperación o de invitación listo para copiar.
 
-La búsqueda de usuarios, clientes, viajeros y proveedores y el orden de los roles sin tildes usan la extensión `unaccent` de
+La búsqueda de usuarios, clientes, viajeros, proveedores y solicitudes y el orden de los roles sin tildes usan la extensión `unaccent` de
 PostgreSQL. La migración la crea; desde PostgreSQL 13 es una extensión confiable, así que
 basta con que el rol sea dueño de la base (no hace falta superusuario).
 

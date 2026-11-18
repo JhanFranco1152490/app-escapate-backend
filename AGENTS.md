@@ -60,7 +60,8 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   ├── schemas.py     InputSchema (extra="forbid"), OutputSchema (from_attributes),
   │   │                  UserRef
   │   ├── fields.py      PersonName, Email, InternationalPhone, City, SearchText, RecordId,
-  │   │                  validadores de texto y del número de documento
+  │   │                  validadores de texto (optional_multiline_text admite saltos de
+  │   │                  línea) y del número de documento
   │   │                  (valid_document_number, optional_document_number),
   │   │                  fixed_choices (lista de códigos de un enum, sin repetidos y en su
   │   │                  orden) y same_error (juntar errores en un solo ValidationError)
@@ -99,6 +100,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   | `accounts` | —                                                                       |
   | `clients`  | `accounts` (`models.UserAccount`: quién registró y quién autorizó los datos) |
   | `suppliers` | `accounts` (`models.UserAccount`: quién registró y quién desactivó) |
+  | `travel_requests` | `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el nombre del cliente) y `accounts` (`models.UserAccount` y `RolePermission`: quién registró, el asesor responsable y quién puede serlo) |
 
 - **Cuentas y acceso (`app/accounts/`):**
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un
@@ -153,19 +155,21 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     staging, nunca en producción). Crea cuatro cuentas ficticias, una por rol sembrado
     (`demo_data.py`; las contraseñas están en el código a propósito: son cuentas inventadas
     que solo existen en staging) y, con `--with-demo-data`, unos pocos clientes, viajeros y
-    proveedores ficticios, con servicios turísticos y tarifas (`demo_data.py` de `clients` y
-    `suppliers`, cargados con sus servicios de alta para respetar sus validaciones). Reglas:
+    proveedores ficticios, con servicios turísticos y tarifas, y solicitudes de viaje de los
+    clientes de demostración (`demo_data.py` de `clients`, `suppliers` y `travel_requests`,
+    cargados con sus servicios de alta para respetar sus validaciones). Reglas:
     - Repetible: lo que ya existe se omite y se informa, no falla ni duplica. Clientes,
-      viajeros y proveedores se reconocen por su documento (`same_document`); un servicio,
-      por su proveedor y su nombre, y se omite junto con sus tarifas (sus fechas son
-      relativas a hoy: cargarlas otro día agregaría tarifas nuevas). Se mira antes de crear
+      viajeros y proveedores se reconocen por su documento (`same_document`); una solicitud,
+      por su cliente y su destino; un servicio, por su proveedor y su nombre, y se omite
+      junto con sus tarifas (sus fechas son relativas a hoy: cargarlas otro día agregaría
+      tarifas nuevas). Se mira antes de crear
       y no se atrapa el error del servicio, porque un viajero repetido puede fallar por
       varias reglas a la vez.
     - Los roles se buscan todos antes de crear nada (el Administrador por `is_protected`, los
       demás por nombre): si falta uno no queda una carga a medias.
     - La salida son dos tablas, nunca contraseñas: las cuentas (rol, documento, correo,
       estado) y los registros (tipo, registro, estado; el registro es el documento, o el
-      nombre y el proveedor en un servicio).
+      nombre y el proveedor en un servicio, o el destino y el cliente en una solicitud).
     - Los datos de demostración usan al Administrador de demostración como autor.
   - Gestión de usuarios (`users_router.py`, permisos `users.view` y `users.manage`, que la
     migración asigna al rol Administrador): `services/user_queries.py` lee (lista con
@@ -311,6 +315,37 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     - Crear un servicio y activarlo bloquean la fila del proveedor (`FOR UPDATE`), y crear
       una tarifa la del servicio, para que una desactivación simultánea no deje algo nuevo
       colgando de un registro inactivo.
+- **Solicitudes de viaje (`app/travel_requests/`):** lo que un cliente pide para su viaje
+  (`TravelRequest`). Permisos `travel_requests.view` y `travel_requests.manage`; la migración
+  da los dos al rol protegido y al Asesor comercial, y "Ver" al Operativo.
+  `services/request_queries.py` lee (lista con búsqueda y filtros, ficha y resumen de
+  conteos), `services/request_management.py` escribe (alta, edición, cerrar y reabrir),
+  `services/advisors.py` dice quién puede ser asesor responsable y el router es `router.py`
+  (`/api/travel-requests`). Reglas que no se repiten en otro lado:
+  - Fechas en dos modos (`date_mode`): **exactas** (salida obligatoria, regreso opcional) o
+    **período flexible** (ventana desde–hasta y noches aproximadas que quepan en ella). Los
+    campos del otro modo son un error, no se ignoran; cada uno se valida en su campo en
+    `TravelRequestInput` y los `CHECK` de la tabla repiten las reglas.
+  - Una fecha pasada (la salida, o el fin del período) se rechaza al crear, y al editar solo
+    si cambió: se pueden corregir otros datos de un viaje que ya empezó.
+  - El cliente no cambia después de crear. Un cliente puede tener varias solicitudes
+    iguales: no hay restricción única.
+  - El código `SOL-0231` sale del `id` (`codes.py`), no se guarda; la búsqueda lo entiende
+    escrito de varias formas (`parse_code`).
+  - El asesor responsable es una persona activa cuyo rol tiene `travel_requests.manage`;
+    todos los que ven solicitudes las ven todas.
+  - Estados `new`, `quoting`, `quoted` y `closed`. "Pendiente de cotización" es `new` o
+    `quoting`. El asesor solo cierra (con motivo, y nota si es "Otro") y reabre; una
+    cerrada no se edita ni se vuelve a cerrar (`409 travel_request_closed`). El estado de
+    una solicitud abierta lo decide **solo** `services/request_status.py`
+    (`refresh_status`): los dominios que crean borradores y cotizaciones lo llaman dentro de
+    su transacción, sin `commit()`, y agregan ahí su consulta.
+  - El presupuesto es un rango opcional en pesos enteros (`bigint`), solo de referencia.
+    Las condiciones y observaciones admiten saltos de línea.
+  - La lista no trae notas, presupuesto ni preferencias. Los días de espera y el resumen
+    ("más de 3 días", `PENDING_WAIT_DAYS`) se cuentan con la fecha de Bogotá.
+  - Nunca se borra una solicitud (`ON DELETE RESTRICT`); edición, cierre y reapertura
+    exigen `expected_version`.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
@@ -437,11 +472,12 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 
 ## Pendiente antes de los demás modelos del dominio
 
-Antes de modelar solicitudes, cotizaciones y ventas hay que resolver las preguntas abiertas
-del modelo de datos del workspace (`docs/CONTEXTO.md`) con el agente `arquitecto`. Ya
-existen las cuentas, roles y sesiones ("Cuentas y acceso"), los clientes y viajeros
-("Clientes y viajeros") y los proveedores con sus servicios turísticos y tarifas
-("Proveedores").
+Antes de modelar los viajeros de una solicitud, los borradores de alternativas, las
+cotizaciones y las ventas hay que resolver las preguntas abiertas del modelo de datos del
+workspace (`docs/CONTEXTO.md`) con el agente `arquitecto`. Ya existen las cuentas, roles y
+sesiones ("Cuentas y acceso"), los clientes y viajeros ("Clientes y viajeros"), los
+proveedores con sus servicios turísticos y tarifas ("Proveedores") y las solicitudes de
+viaje ("Solicitudes de viaje").
 
 ## Stack
 

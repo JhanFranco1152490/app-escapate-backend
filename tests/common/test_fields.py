@@ -1,9 +1,10 @@
 from enum import StrEnum
+from typing import Annotated
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import AfterValidator, BaseModel, ValidationError
 
-from app.common.fields import fixed_choices
+from app.common.fields import fixed_choices, optional_multiline_text
 
 
 class Color(StrEnum):
@@ -58,3 +59,37 @@ def test_an_empty_list_is_accepted_when_not_required():
 
 def test_more_items_than_choices_is_rejected():
     assert errors(Required, ["red", "green", "blue", "red"])[0][0] == ("colors",)
+
+
+class Note(BaseModel):
+    text: Annotated[str, AfterValidator(optional_multiline_text(10))] | None = None
+
+
+def note_errors(text: str) -> list[str]:
+    with pytest.raises(ValidationError) as caught:
+        Note(text=text)
+    return [error["msg"] for error in caught.value.errors()]
+
+
+def test_a_multiline_text_keeps_its_line_breaks():
+    assert Note(text="uno\ndos").text == "uno\ndos"
+
+
+def test_windows_and_old_mac_line_breaks_become_a_single_line_feed():
+    assert Note(text="a\r\nb\rc").text == "a\nb\nc"
+
+
+def test_a_multiline_text_is_trimmed_and_empty_becomes_none():
+    assert Note(text="  \n hola \n ").text == "hola"
+    assert Note(text=" \n ").text is None
+
+
+@pytest.mark.parametrize("character", ["\t", "\x00", "\u200b"])
+def test_other_control_or_invisible_characters_are_rejected(character):
+    assert note_errors(f"a{character}b") == ["Contiene caracteres que no se permiten."]
+
+
+def test_the_length_is_counted_after_converting_the_line_breaks():
+    # Con "\r\n" son once caracteres; con "\n", diez: caben.
+    assert Note(text="abcde\r\nfghi").text == "abcde\nfghi"
+    assert note_errors("abcdefghijk") == ["Máximo 10 caracteres."]

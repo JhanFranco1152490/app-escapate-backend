@@ -65,6 +65,22 @@ def optional_text(max_length: int) -> Callable[[str], str | None]:
     return validate
 
 
+def optional_multiline_text(max_length: int) -> Callable[[str], str | None]:
+    """Como `optional_text`, pero admite saltos de línea: observaciones o condiciones que se
+    escriben en varias líneas. Cualquier otro carácter de control se sigue rechazando."""
+
+    def validate(value: str) -> str | None:
+        # Un salto de Windows o de Mac antiguo cuenta como uno solo, igual que en pantalla.
+        text = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+        if len(text) > max_length:
+            raise PydanticCustomError("too_long", f"Máximo {max_length} caracteres.")
+        for line in text.split("\n"):
+            without_control_characters(line)
+        return text or None
+
+    return validate
+
+
 def _email(value: str) -> str:
     candidate = normalize_email(value)
     invalid = PydanticCustomError("invalid_email", "No es un correo válido.")
