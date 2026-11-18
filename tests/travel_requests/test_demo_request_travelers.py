@@ -4,9 +4,12 @@ from app.accounts.services.demo_accounts import seed_demo_accounts
 from app.clients.services.demo_clients import seed_demo_clients
 from app.travel_requests.demo_data import DEMO_REQUEST_TRAVELERS
 from app.travel_requests.models import TravelRequest, TravelRequestTraveler
+from app.travel_requests.schemas import TravelRequestClose
+from app.travel_requests.services import request_management
 from app.travel_requests.services.demo_request_travelers import seed_demo_request_travelers
 from app.travel_requests.services.demo_travel_requests import seed_demo_travel_requests
 from app.travel_requests.services.request_travelers import list_travelers
+from tests.factories import TravelRequestFactory
 
 
 def _seed_requests(session):
@@ -85,3 +88,36 @@ def test_loading_it_again_skips_every_request(session):
         "Viajeros de la solicitud",
         "San Andrés (Cliente Demostración)",
     )
+
+
+def test_a_request_someone_repeated_by_hand_does_not_stop_the_load(session):
+    actor = _seed_requests(session)
+    seeded = session.exec(
+        select(TravelRequest).where(TravelRequest.destination == "San Andrés")
+    ).one()
+    # En staging alguien registró otra solicitud igual para el mismo cliente.
+    TravelRequestFactory(client=seeded.client, destination="San Andrés")
+
+    records = seed_demo_request_travelers(session, actor)
+
+    assert all(record.created for record in records)
+    assert len(list_travelers(session, seeded.id)) == 3
+
+
+def test_a_request_someone_closed_by_hand_is_skipped(session):
+    actor = _seed_requests(session)
+    request = session.exec(
+        select(TravelRequest).where(TravelRequest.destination == "Medellín")
+    ).one()
+    request_management.close_request(
+        session,
+        actor,
+        request.id,
+        TravelRequestClose(reason="duplicate", expected_version=request.version),
+    )
+
+    records = {record.label: record for record in seed_demo_request_travelers(session, actor)}
+
+    assert records["Medellín (Agencia Demostración SAS)"].created is False
+    assert records["San Andrés (Cliente Demostración)"].created is True
+    assert list_travelers(session, request.id) == []
