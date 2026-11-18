@@ -9,6 +9,8 @@ from app.common.fields import RecordId
 from app.common.pagination import Page, PageParams, page_params
 from app.travel_requests.schemas import (
     AdvisorOption,
+    RequestTraveler,
+    RequestTravelersAdd,
     SummaryFilters,
     TravelRequestClose,
     TravelRequestCreate,
@@ -19,13 +21,21 @@ from app.travel_requests.schemas import (
     TravelRequestSummary,
     TravelRequestUpdate,
 )
-from app.travel_requests.services import advisors, request_management, request_queries
+from app.travel_requests.services import (
+    advisors,
+    request_management,
+    request_queries,
+    request_travelers,
+)
 
 router = APIRouter(prefix="/api", tags=["travel-requests"])
 
 can_view = Depends(require_permission("travel_requests.view"))
 can_manage = Depends(require_permission("travel_requests.manage"))
 Manager = Annotated[UserAccount, can_manage]
+# La lista de viajeros muestra sus documentos de identidad: además del permiso de solicitudes
+# pide el de ver viajeros.
+can_view_travelers = Depends(require_permission("travelers.view"))
 
 
 @router.get("/travel-requests", dependencies=[can_view], responses=error_responses(401, 403))
@@ -100,3 +110,35 @@ def reopen_travel_request(
     request_id: RecordId, data: TravelRequestReopen, session: SessionDep
 ) -> TravelRequestDetail:
     return request_management.reopen_request(session, request_id, data)
+
+
+@router.get(
+    "/travel-requests/{request_id}/travelers",
+    dependencies=[can_view, can_view_travelers],
+    responses=error_responses(401, 403, 404),
+)
+def list_request_travelers(request_id: RecordId, session: SessionDep) -> list[RequestTraveler]:
+    return request_travelers.list_travelers(session, request_id)
+
+
+@router.post(
+    "/travel-requests/{request_id}/travelers",
+    dependencies=[can_view_travelers],
+    responses=error_responses(401, 403, 404, 409),
+)
+def add_request_travelers(
+    request_id: RecordId, data: RequestTravelersAdd, actor: Manager, session: SessionDep
+) -> list[RequestTraveler]:
+    return request_travelers.add_travelers(session, actor, request_id, data)
+
+
+@router.delete(
+    "/travel-requests/{request_id}/travelers/{traveler_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[can_manage, can_view_travelers],
+    responses=error_responses(401, 403, 404, 409),
+)
+def remove_request_traveler(
+    request_id: RecordId, traveler_id: RecordId, session: SessionDep
+) -> None:
+    request_travelers.remove_traveler(session, request_id, traveler_id)

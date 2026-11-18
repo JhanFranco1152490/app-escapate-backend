@@ -107,8 +107,8 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         description="Gestionar solicitudes de viaje",
         requires=("travel_requests.view",),
         help=(
-            "Registrar solicitudes de viaje, editarlas, reasignarlas, cerrarlas y reabrirlas. "
-            "Quien tiene este permiso puede ser asesor responsable."
+            "Registrar solicitudes de viaje, editarlas, reasignarlas, cerrarlas, reabrirlas y "
+            "asociar sus viajeros. Quien tiene este permiso puede ser asesor responsable."
         ),
     ),
     "suppliers.view": PermissionInfo(
