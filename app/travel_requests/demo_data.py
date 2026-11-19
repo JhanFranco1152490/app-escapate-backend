@@ -85,3 +85,26 @@ DEMO_TRAVEL_REQUESTS: tuple[DemoTravelRequest, ...] = (
         advisor_document=_ADVISOR,
     ),
 )
+
+
+@dataclass(frozen=True)
+class DemoRequestTravelers:
+    """Quién viaja en una solicitud de demostración. La solicitud se reconoce como en
+    DEMO_TRAVEL_REQUESTS y cada viajero por su documento."""
+
+    client_document: tuple[str, str]
+    destination: str
+    traveler_documents: tuple[tuple[str, str], ...]
+
+
+_TITULAR = ("CC", "1000000101")
+_MINOR = ("TI", "1000000202")
+_FOREIGNER = ("PA", "DEMO000303")
+
+# Una solicitud por cada aviso de cantidades: coinciden, sobra un menor y faltan adultos.
+# Eje Cafetero queda sin viajeros, y Cancún también: está cerrada y no se le asocia nadie.
+DEMO_REQUEST_TRAVELERS: tuple[DemoRequestTravelers, ...] = (
+    DemoRequestTravelers(_PERSON, "San Andrés", (_TITULAR, _MINOR, _FOREIGNER)),
+    DemoRequestTravelers(_PERSON, "Cartagena y Santa Marta", (_TITULAR, _MINOR)),
+    DemoRequestTravelers(_COMPANY, "Medellín", (_FOREIGNER,)),
+)

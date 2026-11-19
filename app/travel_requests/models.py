@@ -7,7 +7,7 @@ from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.accounts.models import UserAccount
-from app.clients.models import Client
+from app.clients.models import Client, Traveler
 from app.common.columns import (
     foreign_key,
     in_values,
@@ -167,3 +167,23 @@ class TravelRequest(SQLModel, table=True):
     def waiting_days(self) -> int:
         """Días calendario de Bogotá desde que se registró."""
         return (today() - self.created_at.astimezone(BOGOTA).date()).days
+
+
+class TravelRequestTraveler(SQLModel, table=True):
+    """Quién viaja en una solicitud. Asociar o quitar a un viajero no edita la solicitud: la
+    pareja es la llave, así que dos asesores asociando a la misma persona no la repiten."""
+
+    __tablename__ = "travel_request_traveler"
+
+    travel_request_id: int = foreign_key(
+        "travel_request.id", ondelete="RESTRICT", primary_key=True
+    )
+    traveler_id: int = foreign_key(
+        "traveler.id", ondelete="RESTRICT", primary_key=True, index=True
+    )
+    added_by_id: int = foreign_key("user_account.id", ondelete="RESTRICT")
+    added_at: datetime | None = timestamp()
+
+    travel_request: TravelRequest = Relationship()
+    traveler: Traveler = Relationship()
+    added_by: UserAccount = Relationship()

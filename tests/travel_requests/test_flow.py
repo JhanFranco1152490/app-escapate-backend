@@ -1,11 +1,12 @@
-"""Recorrido de HU-10 (registrar solicitudes), HU-11 (gestionarlas) y HU-13 (pendientes de
-cotización) desde la API, con los permisos reales de los roles sembrados."""
+"""Recorridos de HU-10 (registrar solicitudes), HU-11 (gestionarlas), HU-13 (pendientes de
+cotización) y HU-09 (viajeros de la solicitud) desde la API, con los permisos reales de los
+roles sembrados."""
 
 from datetime import timedelta
 
 from app.common.dates import today
 from tests.accounts.helpers import signed_in
-from tests.factories import ClientFactory, UserAccountFactory
+from tests.factories import ClientFactory, TravelerFactory, UserAccountFactory
 
 
 def _in_days(days: int) -> str:
@@ -123,3 +124,75 @@ def test_an_advisor_takes_a_request_from_registration_to_closing_and_operations_
         json={"reason": "duplicate", "expected_version": reopened.json()["version"]},
     )
     assert denied.status_code == 403
+
+
+def test_an_advisor_chooses_who_travels_and_operations_only_reads(
+    app, session, auth_client, advisor_role, operations_role
+):
+    """Recorrido de HU-09 (asociar viajeros al proceso de viaje)."""
+    laura = UserAccountFactory(role=advisor_role, first_name="Laura", last_name="Rojas")
+    advisor = auth_client(user=laura)
+    client = ClientFactory(first_name="Marcela", last_name="Gómez Ortiz")
+    created = advisor.post(
+        "/api/travel-requests",
+        json={
+            "client_id": client.id,
+            "destination": "San Andrés",
+            "date_mode": "exact",
+            "departure_date": _in_days(35),
+            "adults": 2,
+            "minors": 1,
+            "assigned_to_id": laura.id,
+        },
+    ).json()
+    travelers_url = f"/api/travel-requests/{created['id']}/travelers"
+    titular = TravelerFactory(reference_client=client, is_the_client=True)
+    daughter = TravelerFactory(
+        reference_client=client, document_type="TI", birth_date=today() - timedelta(days=14 * 365)
+    )
+    friend = TravelerFactory()
+
+    # Los viajeros de referencia del cliente son los que la pantalla sugiere primero.
+    suggested = advisor.get("/api/travelers", params={"client_id": client.id}).json()
+    assert {item["id"] for item in suggested["results"]} == {titular.id, daughter.id}
+
+    # CA-01 y CA-04: se asocian varios a la vez, cada uno con sus propios datos.
+    added = advisor.post(
+        travelers_url, json={"traveler_ids": [titular.id, daughter.id, friend.id]}
+    )
+    assert added.status_code == 200
+    by_id = {item["id"]: item for item in added.json()}
+    assert by_id[titular.id]["is_the_client"] is True
+    assert by_id[daughter.id]["is_minor"] is True
+    assert by_id[friend.id]["is_the_client"] is False
+
+    # CA-02: aparecen entre los participantes.
+    assert len(advisor.get(travelers_url).json()) == 3
+
+    # CA-03: quitar al que se asoció por error no borra sus datos.
+    assert advisor.delete(f"{travelers_url}/{friend.id}").status_code == 204
+    assert {item["id"] for item in advisor.get(travelers_url).json()} == {
+        titular.id,
+        daughter.id,
+    }
+    assert advisor.get(f"/api/travelers/{friend.id}").status_code == 200
+
+    # Cerrada no cambia sus viajeros; reabierta los conserva.
+    request = advisor.get(f"/api/travel-requests/{created['id']}").json()
+    assert request["version"] == created["version"]
+    closed = advisor.post(
+        f"/api/travel-requests/{created['id']}/close",
+        json={"reason": "client_declined", "expected_version": request["version"]},
+    ).json()
+    blocked = advisor.post(travelers_url, json={"traveler_ids": [friend.id]})
+    assert (blocked.status_code, blocked.json()["code"]) == (409, "travel_request_closed")
+    advisor.post(
+        f"/api/travel-requests/{created['id']}/reopen",
+        json={"expected_version": closed["version"]},
+    )
+    assert len(advisor.get(travelers_url).json()) == 2
+
+    # El Operativo ve quién viaja pero no lo cambia.
+    operations = signed_in(app, session, UserAccountFactory(role=operations_role))
+    assert len(operations.get(travelers_url).json()) == 2
+    assert operations.delete(f"{travelers_url}/{titular.id}").status_code == 403

@@ -361,3 +361,12 @@ def test_reopening_over_an_old_version_is_rejected(session):
         request_management.reopen_request(
             session, request.id, TravelRequestReopen(expected_version=request.version + 1)
         )
+
+
+def test_ensure_open_accepts_an_open_request(session):
+    request_management.ensure_open(TravelRequestFactory())
+
+
+def test_ensure_open_rejects_a_closed_request(session):
+    with pytest.raises(TravelRequestClosed):
+        request_management.ensure_open(TravelRequestFactory(closed=True))

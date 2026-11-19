@@ -100,7 +100,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   | `accounts` | —                                                                       |
   | `clients`  | `accounts` (`models.UserAccount`: quién registró y quién autorizó los datos) |
   | `suppliers` | `accounts` (`models.UserAccount`: quién registró y quién desactivó) |
-  | `travel_requests` | `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el nombre del cliente) y `accounts` (`models.UserAccount` y `RolePermission`: quién registró, el asesor responsable y quién puede serlo) |
+  | `travel_requests` | `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el nombre del cliente; `models.Traveler`, para los viajeros de la solicitud) y `accounts` (`models.UserAccount` y `RolePermission`: quién registró, el asesor responsable y quién puede serlo) |
 
 - **Cuentas y acceso (`app/accounts/`):**
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un
@@ -156,13 +156,14 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     (`demo_data.py`; las contraseñas están en el código a propósito: son cuentas inventadas
     que solo existen en staging) y, con `--with-demo-data`, unos pocos clientes, viajeros y
     proveedores ficticios, con servicios turísticos y tarifas, y solicitudes de viaje de los
-    clientes de demostración (`demo_data.py` de `clients`, `suppliers` y `travel_requests`,
+    clientes de demostración con sus viajeros (`demo_data.py` de `clients`, `suppliers` y
+    `travel_requests`,
     cargados con sus servicios de alta para respetar sus validaciones). Reglas:
     - Repetible: lo que ya existe se omite y se informa, no falla ni duplica. Clientes,
       viajeros y proveedores se reconocen por su documento (`same_document`); una solicitud,
-      por su cliente y su destino; un servicio, por su proveedor y su nombre, y se omite
-      junto con sus tarifas (sus fechas son relativas a hoy: cargarlas otro día agregaría
-      tarifas nuevas). Se mira antes de crear
+      por su cliente y su destino, y sus viajeros se omiten si ya tiene alguno; un servicio,
+      por su proveedor y su nombre, y se omite junto con sus tarifas (sus fechas son
+      relativas a hoy: cargarlas otro día agregaría tarifas nuevas). Se mira antes de crear
       y no se atrapa el error del servicio, porque un viajero repetido puede fallar por
       varias reglas a la vez.
     - Los roles se buscan todos antes de crear nada (el Administrador por `is_protected`, los
@@ -346,6 +347,24 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     ("más de 3 días", `PENDING_WAIT_DAYS`) se cuentan con la fecha de Bogotá.
   - Nunca se borra una solicitud (`ON DELETE RESTRICT`); edición, cierre y reapertura
     exigen `expected_version`.
+  - **Viajeros de la solicitud** (`TravelRequestTraveler`, tabla `travel_request_traveler`):
+    quién viaja, elegido entre los viajeros registrados. La llave es la pareja solicitud y
+    viajero. `services/request_travelers.py` lista, asocia y quita, y las rutas son
+    `GET`/`POST /api/travel-requests/{id}/travelers` y
+    `DELETE /api/travel-requests/{id}/travelers/{traveler_id}`. Las tres piden además
+    `travelers.view`, porque la lista muestra documentos de identidad; asociar y quitar,
+    `travel_requests.manage`. Reglas:
+    - Asociar y quitar no editan la solicitud (ni `version` ni `updated_at`): quien tiene sus
+      datos abiertos en otra pestaña no recibe un `stale_version` por eso.
+    - Las dos son idempotentes: asociar a alguien que ya estaba no falla ni lo repite
+      (`ON CONFLICT DO NOTHING`), y quitar a alguien que no estaba responde `204`. Si un
+      viajero de la lista no existe, no se asocia ninguno.
+    - Una solicitud cerrada no cambia sus viajeros (`ensure_open` de
+      `request_management.py`, el mismo `409` que editar). Las dos leen la solicitud con
+      `FOR SHARE`, para que un cierre simultáneo espere o se vea: nunca queda un viajero
+      agregado a una solicitud ya cerrada.
+    - `is_the_client` de la lista vale solo si el viajero es el cliente de esa solicitud. La
+      lista no trae nacionalidad, fecha de nacimiento ni notas.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
@@ -472,12 +491,14 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
 
 ## Pendiente antes de los demás modelos del dominio
 
-Antes de modelar los viajeros de una solicitud, los borradores de alternativas, las
-cotizaciones y las ventas hay que resolver las preguntas abiertas del modelo de datos del
+Antes de modelar los borradores de alternativas, las cotizaciones y las ventas hay que
+resolver las preguntas abiertas del modelo de datos del
 workspace (`docs/CONTEXTO.md`) con el agente `arquitecto`. Ya existen las cuentas, roles y
 sesiones ("Cuentas y acceso"), los clientes y viajeros ("Clientes y viajeros"), los
 proveedores con sus servicios turísticos y tarifas ("Proveedores") y las solicitudes de
-viaje ("Solicitudes de viaje").
+viaje con sus viajeros ("Solicitudes de viaje"). Los viajeros ya tienen su decisión: una
+lista por etapa, así que la cotización y la venta tendrán su propia tabla, copiada de la
+etapa anterior al crearse, y no leerán `travel_request_traveler`.
 
 ## Stack
 

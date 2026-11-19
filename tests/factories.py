@@ -10,7 +10,7 @@ from app.common.identifiers import nit_check_digit
 from app.core.security.passwords import hash_password
 from app.suppliers.models import Supplier
 from app.suppliers.tourist_service_models import ServiceRate, TouristService
-from app.travel_requests.models import TravelRequest
+from app.travel_requests.models import TravelRequest, TravelRequestTraveler
 
 PASSWORD = "contrasena-de-prueba-123"
 # Argon2 es lento a propósito: un solo hash para todas las cuentas de prueba.
@@ -190,3 +190,14 @@ class TravelRequestFactory(BaseFactory):
     status = "new"
     created_by = factory.SelfAttribute("client.created_by")
     assigned_to = factory.SelfAttribute("created_by")
+
+
+class TravelRequestTravelerFactory(BaseFactory):
+    """Un viajero asociado a una solicitud por quien la registró."""
+
+    class Meta:
+        model = TravelRequestTraveler
+
+    travel_request = factory.SubFactory(TravelRequestFactory)
+    traveler = factory.SubFactory(TravelerFactory)
+    added_by = factory.SelfAttribute("travel_request.created_by")
