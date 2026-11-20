@@ -206,7 +206,7 @@ class TravelRequestTravelerFactory(BaseFactory):
 
 class QuoteFactory(BaseFactory):
     """Una cotización en borrador de una solicitud nueva, vigente por una semana; `sent=True`
-    la da enviada."""
+    la da enviada y `accepted=True`, aceptada."""
 
     class Meta:
         model = Quote
@@ -214,6 +214,11 @@ class QuoteFactory(BaseFactory):
     class Params:
         sent = factory.Trait(
             status="sent", sent_at=factory.LazyFunction(lambda: datetime.now(timezone.utc))
+        )
+        accepted = factory.Trait(
+            status="accepted",
+            sent_at=factory.LazyFunction(lambda: datetime.now(timezone.utc)),
+            decided_at=factory.LazyFunction(lambda: datetime.now(timezone.utc)),
         )
 
     travel_request = factory.SubFactory(TravelRequestFactory)
