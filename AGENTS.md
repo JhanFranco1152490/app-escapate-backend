@@ -101,6 +101,7 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   | `clients`  | `accounts` (`models.UserAccount`: quién registró y quién autorizó los datos) |
   | `suppliers` | `accounts` (`models.UserAccount`: quién registró y quién desactivó) |
   | `travel_requests` | `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el nombre del cliente; `models.Traveler`, para los viajeros de la solicitud) y `accounts` (`models.UserAccount` y `RolePermission`: quién registró, el asesor responsable y quién puede serlo) |
+  | `quotes` | `travel_requests` (`models.TravelRequest`, `services.request_management.ensure_open` y `services.request_status.refresh_status`: la cotización nace de una solicitud abierta y la pasa a cotizada), `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el cliente), `suppliers` (`models.Supplier`, `tourist_service_models.TouristService` y `service_types`: los servicios del catálogo) y `accounts` (`models.UserAccount`) |
 
 - **Cuentas y acceso (`app/accounts/`):**
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un
@@ -365,6 +366,34 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
       agregado a una solicitud ya cerrada.
     - `is_the_client` de la lista vale solo si el viajero es el cliente de esa solicitud. La
       lista no trae nacionalidad, fecha de nacimiento ni notas.
+- **Cotizaciones (`app/quotes/`):** la propuesta que se le presenta al cliente (`Quote`) y
+  sus servicios (`QuoteItem`). Permisos `quotes.view` y `quotes.manage`; la migración da los
+  dos al rol protegido y al Asesor comercial, y "Ver" al Operativo.
+  `services/quote_queries.py` lee (lista con búsqueda y filtros, y ficha con los servicios),
+  `services/quote_management.py` escribe (alta, datos generales, condiciones, precios y
+  cambios de estado), `services/quote_items.py` agrega, edita y quita servicios, y el router es
+  `router.py` (`/api/quotes`). Reglas que no se repiten en otro lado:
+  - Nace de una solicitud abierta (`ensure_open`) y copia sus datos generales (destino,
+    origen, fechas si eran exactas, adultos y menores); desde ahí se edita por su cuenta. La
+    solicitud se lee con `FOR UPDATE` y pasa a `quoted` con `refresh_status`, que reconoce
+    las cotizaciones con una tabla ligera (`table("quote", ...)`) para no importar este
+    dominio desde `travel_requests`.
+  - Estados `draft -> sent -> accepted | rejected`. Solo se edita en `draft`
+    (`409 quote_not_editable`); `sent` y `rejected` vuelven a `draft` y `accepted` ya no
+    cambia. Enviar exige al menos un servicio y una vigencia que no haya pasado. `vencida`
+    no se guarda: es `sent` con `valid_until` anterior a hoy (`is_expired`, filtro `expired`),
+    y una vencida no se acepta (`409 quote_expired`). `sent_at` y `decided_at` los vigilan
+    `CHECK` de la tabla.
+  - El código `COT-0012` sale del `id` (`RecordCode` de `app/common/codes.py`, el mismo de
+    las solicitudes).
+  - Un servicio sale del catálogo (`tourist_service_id`: activo, del mismo tipo, y trae su
+    proveedor) o se escribe a mano (proveedor opcional). El costo va por unidad en la moneda
+    del proveedor (COP entero, USD con centavos) y la conversión usa `exchange_rate` de la
+    cotización. Sin `markup_percent`, el servicio toma `default_markup_percent` de la
+    cotización. `sale_price_override` es el precio total escrito a mano y la comisión del
+    proveedor es solo de referencia.
+  - Los servicios leen la cotización con `FOR SHARE` (un envío simultáneo espera o se ve) y
+    no cambian su `version`.
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.

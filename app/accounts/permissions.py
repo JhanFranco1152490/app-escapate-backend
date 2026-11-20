@@ -111,6 +111,24 @@ PERMISSIONS: dict[str, PermissionInfo] = {
             "asociar sus viajeros. Quien tiene este permiso puede ser asesor responsable."
         ),
     ),
+    "quotes.view": PermissionInfo(
+        section="Comercial",
+        group="Cotizaciones",
+        label="Ver",
+        description="Ver cotizaciones",
+        help="Ver las cotizaciones, sus servicios, costos, márgenes y condiciones.",
+    ),
+    "quotes.manage": PermissionInfo(
+        section="Comercial",
+        group="Cotizaciones",
+        label="Gestionar",
+        description="Gestionar cotizaciones",
+        requires=("quotes.view",),
+        help=(
+            "Crear cotizaciones desde una solicitud, configurar sus servicios, precios y "
+            "condiciones, enviarlas y registrar si el cliente las aceptó o rechazó."
+        ),
+    ),
     "suppliers.view": PermissionInfo(
         section="Oferta turística",
         group="Proveedores",

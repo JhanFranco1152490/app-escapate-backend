@@ -8,6 +8,7 @@ from app.clients.models import Client, Traveler
 from app.common.dates import today
 from app.common.identifiers import nit_check_digit
 from app.core.security.passwords import hash_password
+from app.quotes.models import Quote, QuoteItem
 from app.suppliers.models import Supplier
 from app.suppliers.tourist_service_models import ServiceRate, TouristService
 from app.travel_requests.models import TravelRequest, TravelRequestTraveler
@@ -201,3 +202,42 @@ class TravelRequestTravelerFactory(BaseFactory):
     travel_request = factory.SubFactory(TravelRequestFactory)
     traveler = factory.SubFactory(TravelerFactory)
     added_by = factory.SelfAttribute("travel_request.created_by")
+
+
+class QuoteFactory(BaseFactory):
+    """Una cotización en borrador de una solicitud nueva, vigente por una semana; `sent=True`
+    la da enviada."""
+
+    class Meta:
+        model = Quote
+
+    class Params:
+        sent = factory.Trait(
+            status="sent", sent_at=factory.LazyFunction(lambda: datetime.now(timezone.utc))
+        )
+
+    travel_request = factory.SubFactory(TravelRequestFactory)
+    client = factory.SelfAttribute("travel_request.client")
+    status = "draft"
+    destination = factory.SelfAttribute("travel_request.destination")
+    adults = 2
+    minors = 0
+    valid_until = factory.LazyFunction(lambda: today() + timedelta(days=7))
+    default_markup_percent = Decimal("15.00")
+    created_by = factory.SelfAttribute("travel_request.created_by")
+
+
+class QuoteItemFactory(BaseFactory):
+    """Un alojamiento escrito a mano, en pesos, por dos noches."""
+
+    class Meta:
+        model = QuoteItem
+
+    quote = factory.SubFactory(QuoteFactory)
+    service_type = "lodging"
+    name = factory.Sequence(lambda n: f"Hotel de prueba {n}")
+    quantity = 2
+    charge_unit = "per_night"
+    currency = "COP"
+    unit_cost = factory.LazyFunction(lambda: Decimal("400000"))
+    markup_percent = Decimal("15.00")
