@@ -37,6 +37,7 @@ from app.common.columns import (
     versioned,
 )
 from app.common.dates import today
+from app.quotes import pricing
 from app.suppliers.models import Supplier
 from app.suppliers.service_types import ChargeUnit, Currency, ServiceType
 from app.suppliers.tourist_service_models import TouristService
@@ -140,6 +141,14 @@ class Quote(SQLModel, table=True):
         Bogotá cada vez que se consulta."""
         return self.status == QuoteStatus.SENT and self.valid_until < today()
 
+    @property
+    def totals(self) -> pricing.Totals:
+        lines = [
+            pricing.LineAmounts(item.cost_in_pesos, item.sale_price, item.is_optional)
+            for item in self.items
+        ]
+        return pricing.totals(lines, self.adults + self.minors, self.deposit_percent)
+
 
 class QuoteItem(SQLModel, table=True):
     __tablename__ = "quote_item"
@@ -209,3 +218,15 @@ class QuoteItem(SQLModel, table=True):
     @declared_attr.directive
     def __mapper_args__(cls) -> dict:
         return versioned(cls)
+
+    @property
+    def cost_in_pesos(self) -> int | None:
+        return pricing.cost_in_pesos(
+            self.unit_cost, self.quantity, self.currency, self.quote.exchange_rate
+        )
+
+    @property
+    def sale_price(self) -> int | None:
+        return pricing.sale_price(
+            self.cost_in_pesos, self.markup_percent, self.sale_price_override
+        )
