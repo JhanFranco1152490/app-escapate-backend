@@ -204,12 +204,28 @@ class QuoteItemOut(OutputSchema):
     markup_percent: Decimal
     sale_price_override: int | None
     supplier_commission_percent: Decimal | None
+    # En pesos; `None` si está en dólares y la cotización no tiene tasa de cambio.
+    cost_in_pesos: int | None
+    sale_price: int | None
     version: int
 
     @field_serializer("unit_cost")
     def cost_in_its_currency(self, amount: Decimal) -> str:
         # Texto y no número: en dólares lleva centavos y un número del JSON los podría perder.
         return f"{amount:.0f}" if self.currency == Currency.COP else f"{amount:.2f}"
+
+
+class QuoteTotals(OutputSchema):
+    """Solo los servicios incluidos; los opcionales se suman aparte."""
+
+    cost: int
+    sale: int
+    profit: int
+    margin_percent: Decimal | None
+    optional_sale: int
+    per_person: int | None
+    deposit: int | None
+    missing_exchange_rate: bool
 
 
 class QuoteDetail(QuoteListItem):
@@ -227,3 +243,4 @@ class QuoteDetail(QuoteListItem):
     decided_at: datetime | None
     version: int
     items: list[QuoteItemOut]
+    totals: QuoteTotals
