@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.config import settings as default_settings
 from app.core.rate_limit import limiter
 from app.core.security.csrf import CSRF_HEADER, csrf_protect
+from app.quotes.follow_ups_router import router as follow_ups_router
 from app.quotes.router import router as quotes_router
 from app.suppliers.suppliers_router import router as suppliers_router
 from app.suppliers.tourist_services_router import router as tourist_services_router
@@ -48,6 +49,7 @@ def create_app(settings: Settings = default_settings) -> FastAPI:
     app.include_router(tourist_services_router)
     app.include_router(travel_requests_router)
     app.include_router(quotes_router)
+    app.include_router(follow_ups_router)
 
     @app.middleware("http")
     async def no_store(request: Request, call_next):
