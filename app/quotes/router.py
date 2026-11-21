@@ -8,7 +8,10 @@ from app.common.errors import error_responses
 from app.common.fields import RecordId
 from app.common.pagination import Page, PageParams, page_params
 from app.quotes.schemas import (
+    OfferFilters,
+    OfferService,
     QuoteConditionsUpdate,
+    QuoteCopy,
     QuoteCreate,
     QuoteDetail,
     QuoteFilters,
@@ -20,7 +23,7 @@ from app.quotes.schemas import (
     QuotePricingUpdate,
     QuoteTransition,
 )
-from app.quotes.services import quote_items, quote_management, quote_queries
+from app.quotes.services import offer, quote_copies, quote_items, quote_management, quote_queries
 
 router = APIRouter(prefix="/api/quotes", tags=["quotes"])
 
@@ -39,6 +42,17 @@ def list_quotes(
     params: Annotated[PageParams, Depends(page_params)],
 ) -> Page[QuoteListItem]:
     return quote_queries.list_quotes(session, filters, params, request)
+
+
+# Antes de /{quote_id}: si no, "offer" se leería como un id.
+@router.get("/offer", dependencies=[can_view], responses=error_responses(401, 403))
+def list_offer(
+    request: Request,
+    session: SessionDep,
+    filters: Annotated[OfferFilters, Query()],
+    params: Annotated[PageParams, Depends(page_params)],
+) -> Page[OfferService]:
+    return offer.list_offer(session, filters, params, request)
 
 
 @router.get("/{quote_id}", dependencies=[can_view], responses=error_responses(401, 403, 404))
@@ -88,6 +102,13 @@ def accept_quote(quote_id: RecordId, data: QuoteTransition, session: SessionDep)
 @router.post("/{quote_id}/reject", dependencies=[can_manage], responses=_WRITE_ERRORS)
 def reject_quote(quote_id: RecordId, data: QuoteTransition, session: SessionDep) -> QuoteDetail:
     return quote_management.reject_quote(session, quote_id, data)
+
+
+@router.post("/{quote_id}/copy", status_code=status.HTTP_201_CREATED, responses=_WRITE_ERRORS)
+def copy_quote(
+    quote_id: RecordId, data: QuoteCopy, actor: Manager, session: SessionDep
+) -> QuoteDetail:
+    return quote_copies.copy_quote(session, actor, quote_id, data)
 
 
 @router.post(

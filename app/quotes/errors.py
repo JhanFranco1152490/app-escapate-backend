@@ -8,6 +8,7 @@ UNKNOWN_SUPPLIER = "El proveedor no existe."
 SUPPLIER_OF_THE_SERVICE = "El proveedor sale del servicio elegido."
 CHARGE_UNIT_MISMATCH = "No es una unidad de cobro de este tipo de servicio."
 VALIDITY_IN_PAST = "La vigencia ya pasó."
+BAD_ALTERNATIVE = "Elige un servicio incluido de esta misma cotización."
 
 
 class QuoteNotEditable(ApiError):

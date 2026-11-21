@@ -39,6 +39,8 @@ class LineAmounts:
     cost: int | None
     sale: int | None
     is_optional: bool
+    # Las alternativas tampoco suman: son otra opción para un servicio que ya está.
+    is_alternative: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,7 @@ class Totals:
 
 
 def totals(lines: list[LineAmounts], travelers: int, deposit_percent: Decimal | None) -> Totals:
-    base = [line for line in lines if not line.is_optional]
+    base = [line for line in lines if not (line.is_optional or line.is_alternative)]
     cost = sum(line.cost or 0 for line in base)
     sale = sum(line.sale or 0 for line in base)
     profit = sale - cost
@@ -66,7 +68,9 @@ def totals(lines: list[LineAmounts], travelers: int, deposit_percent: Decimal | 
         sale=sale,
         profit=profit,
         margin_percent=margin,
-        optional_sale=sum(line.sale or 0 for line in lines if line.is_optional),
+        optional_sale=sum(
+            line.sale or 0 for line in lines if line.is_optional and not line.is_alternative
+        ),
         per_person=round_to_peso(Decimal(sale) / travelers) if travelers else None,
         deposit=apply_percentage(sale, deposit_percent) if deposit_percent else None,
         missing_exchange_rate=any(line.sale is None for line in lines),
