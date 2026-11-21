@@ -10,6 +10,7 @@ from sqlmodel import Session, select
 
 from app.common.errors import InvalidFields, NotFound, StaleVersion
 from app.quotes.errors import (
+    BAD_ALTERNATIVE,
     CHARGE_UNIT_MISMATCH,
     INACTIVE_SERVICE,
     SERVICE_TYPE_MISMATCH,
@@ -36,7 +37,10 @@ def _locked_draft(session: Session, quote_id: int) -> Quote:
 
 
 def _references(
-    session: Session, data: QuoteItemInput, current: QuoteItem | None = None
+    session: Session,
+    quote_id: int,
+    data: QuoteItemInput,
+    current: QuoteItem | None = None,
 ) -> int | None:
     """Revisa lo que el esquema no puede revisar sin la base, con todos los errores juntos.
     Devuelve el proveedor del servicio: el del catálogo, si se eligió uno."""
@@ -60,6 +64,17 @@ def _references(
     elif supplier_id is not None and session.get(Supplier, supplier_id) is None:
         fields["supplier_id"] = [UNKNOWN_SUPPLIER]
 
+    if data.alternative_of_id is not None:
+        base = session.get(QuoteItem, data.alternative_of_id)
+        # Un solo nivel: la alternativa es de un servicio incluido, no de otra alternativa.
+        valid = (
+            base is not None
+            and base.quote_id == quote_id
+            and base.alternative_of_id is None
+            and (current is None or base.id != current.id)
+        )
+        if not valid:
+            fields["alternative_of_id"] = [BAD_ALTERNATIVE]
     if data.charge_unit is not None and data.charge_unit not in CHARGE_UNITS[data.service_type]:
         fields["charge_unit"] = [CHARGE_UNIT_MISMATCH]
     if fields:
@@ -84,7 +99,7 @@ def _item(session: Session, quote_id: int, item_id: int) -> QuoteItem:
 
 def add_item(session: Session, quote_id: int, data: QuoteItemCreate) -> QuoteItem:
     quote = _locked_draft(session, quote_id)
-    supplier_id = _references(session, data)
+    supplier_id = _references(session, quote.id, data)
     item = QuoteItem(quote_id=quote.id, **_values(data, quote, supplier_id))
     session.add(item)
     session.commit()
@@ -97,7 +112,7 @@ def update_item(session: Session, quote_id: int, item_id: int, data: QuoteItemUp
     item = _item(session, quote_id, item_id)
     if data.expected_version != item.version:
         raise StaleVersion()
-    supplier_id = _references(session, data, current=item)
+    supplier_id = _references(session, quote.id, data, current=item)
     for name, value in _values(data, quote, supplier_id).items():
         setattr(item, name, value)
     session.add(item)

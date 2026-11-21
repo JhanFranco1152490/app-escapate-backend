@@ -114,6 +114,11 @@ class Quote(SQLModel, table=True):
     policies: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     sent_at: datetime | None = timestamp(nullable=True)
     decided_at: datetime | None = timestamp(nullable=True)
+    # Una versión nueva apunta a la cotización de la que salió y sube su número.
+    previous_quote_id: int | None = foreign_key("quote.id", ondelete="RESTRICT", nullable=True)
+    revision: int = Field(
+        default=1, sa_column=Column(SmallInteger, nullable=False, server_default="1")
+    )
     created_by_id: int = foreign_key("user_account.id", ondelete="RESTRICT")
     created_at: datetime | None = timestamp()
     updated_at: datetime | None = timestamp(onupdate=func.now())
@@ -144,7 +149,12 @@ class Quote(SQLModel, table=True):
     @property
     def totals(self) -> pricing.Totals:
         lines = [
-            pricing.LineAmounts(item.cost_in_pesos, item.sale_price, item.is_optional)
+            pricing.LineAmounts(
+                item.cost_in_pesos,
+                item.sale_price,
+                item.is_optional,
+                item.alternative_of_id is not None,
+            )
             for item in self.items
         ]
         return pricing.totals(lines, self.adults + self.minors, self.deposit_percent)
@@ -192,6 +202,11 @@ class QuoteItem(SQLModel, table=True):
     quantity: int = Field(sa_column=Column(Integer, nullable=False))
     charge_unit: str | None = Field(default=None, max_length=30)
     is_optional: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    # Otra opción para el mismo servicio (otro hotel, otro vuelo): no suma al total, se ofrece
+    # al cliente junto al servicio del que es alternativa.
+    alternative_of_id: int | None = foreign_key(
+        "quote_item.id", ondelete="SET NULL", nullable=True
+    )
     currency: str = Field(sa_column=Column(CHAR(3), nullable=False))
     # Lo que cobra el proveedor por unidad, en su moneda: COP en pesos enteros, USD con
     # centavos. La conversión a pesos se hace al calcular el precio, con la tasa de la

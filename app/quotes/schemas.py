@@ -93,6 +93,12 @@ class QuoteTransition(InputSchema):
     expected_version: int = Field(ge=1)
 
 
+class QuoteCopy(InputSchema):
+    # Versión: sigue siendo la misma propuesta, corregida (sube el número). Duplicado: una
+    # cotización nueva que parte de esta.
+    as_new_version: bool = False
+
+
 class QuoteItemInput(InputSchema):
     # El orden importa: cada validador lee los campos anteriores (`info.data`).
     service_type: ServiceType
@@ -105,6 +111,8 @@ class QuoteItemInput(InputSchema):
     quantity: int = Field(ge=1, le=9999)
     charge_unit: ChargeUnit | None = None
     is_optional: bool = False
+    # Otro servicio de la misma cotización del que este es una alternativa.
+    alternative_of_id: RecordId | None = None
     currency: Currency
     unit_cost: Decimal = Field(ge=0, le=MAX_AMOUNT, max_digits=14, decimal_places=2)
     # Sin valor, el servicio toma el % por defecto de la cotización.
@@ -174,6 +182,8 @@ class QuoteServiceRef(OutputSchema):
 class QuoteListItem(OutputSchema):
     id: int
     code: str
+    revision: int
+    previous_quote_id: int | None
     status: QuoteStatus
     is_expired: bool
     client: QuoteClientRef
@@ -199,6 +209,7 @@ class QuoteItemOut(OutputSchema):
     quantity: int
     charge_unit: ChargeUnit | None
     is_optional: bool
+    alternative_of_id: int | None
     currency: Currency
     unit_cost: Decimal
     markup_percent: Decimal
@@ -244,3 +255,32 @@ class QuoteDetail(QuoteListItem):
     version: int
     items: list[QuoteItemOut]
     totals: QuoteTotals
+
+
+class OfferFilters(BaseModel):
+    q: SearchText = ""
+    service_type: ServiceType | None = None
+
+
+class OfferRate(OutputSchema):
+    id: int
+    name: str
+    currency: Currency
+    charge_unit: ChargeUnit
+    amount: Decimal
+    valid_from: date
+    valid_until: date | None
+
+    @field_serializer("amount")
+    def amount_in_its_currency(self, amount: Decimal) -> str:
+        return f"{amount:.0f}" if self.currency == Currency.COP else f"{amount:.2f}"
+
+
+class OfferService(OutputSchema):
+    id: int
+    service_type: ServiceType
+    name: str
+    destination: str
+    description: str | None
+    supplier: QuoteSupplierRef
+    rates: list[OfferRate]
