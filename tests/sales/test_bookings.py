@@ -22,6 +22,20 @@ def test_preparing_copies_the_included_services_once(auth_client):
     assert [row["id"] for row in again] == [first[0]["id"]]
 
 
+def test_preparing_leaves_out_the_alternatives_that_were_not_chosen(auth_client):
+    # Una alternativa es otra opción para un servicio que ya está: no suma al precio y no se
+    # reserva, o se le pediría a un proveedor algo que el cliente no compró.
+    api = auth_client(permissions=MANAGE)
+    quote = QuoteFactory(accepted=True)
+    hotel = QuoteItemFactory(quote=quote, name="Hotel Las Américas")
+    QuoteItemFactory(quote=quote, name="Hotel Caribe", alternative_of_id=hotel.id)
+    sale = api.post("/api/sales", json={"quote_id": quote.id}).json()
+
+    bookings = api.post(f"/api/sales/{sale['id']}/bookings/prepare").json()
+
+    assert [row["name"] for row in bookings] == ["Hotel Las Américas"]
+
+
 def test_confirming_a_booking(auth_client):
     api = auth_client(permissions=MANAGE)
     quote = QuoteFactory(accepted=True)
