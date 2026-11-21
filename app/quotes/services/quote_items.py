@@ -6,7 +6,7 @@ cotización ya enviada. Cambiar un servicio no edita la cotización (ni su `vers
 quien tiene sus datos generales abiertos no reciba un `stale_version` por eso.
 """
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.common.errors import InvalidFields, NotFound, StaleVersion
 from app.quotes.errors import (
@@ -17,6 +17,7 @@ from app.quotes.errors import (
     SUPPLIER_OF_THE_SERVICE,
     UNKNOWN_SERVICE,
     UNKNOWN_SUPPLIER,
+    NotAnAlternative,
 )
 from app.quotes.models import Quote, QuoteItem
 from app.quotes.schemas import QuoteItemCreate, QuoteItemInput, QuoteItemUpdate
@@ -124,4 +125,28 @@ def update_item(session: Session, quote_id: int, item_id: int, data: QuoteItemUp
 def remove_item(session: Session, quote_id: int, item_id: int) -> None:
     _locked_draft(session, quote_id)
     session.delete(_item(session, quote_id, item_id))
+    session.commit()
+
+
+def choose_alternative(session: Session, quote_id: int, item_id: int) -> None:
+    """Pasa la alternativa elegida a la cotización en lugar del servicio del que era opción: la
+    elegida queda incluida, el servicio que estaba queda como alternativa de ella, y las demás
+    alternativas pasan a ser de la elegida. Así nada se pierde y se puede volver a cambiar."""
+    _locked_draft(session, quote_id)
+    chosen = _item(session, quote_id, item_id)
+    if chosen.alternative_of_id is None:
+        raise NotAnAlternative()
+    base = _item(session, quote_id, chosen.alternative_of_id)
+    siblings = session.exec(
+        select(QuoteItem).where(
+            QuoteItem.alternative_of_id == base.id, col(QuoteItem.id) != chosen.id
+        )
+    ).all()
+    chosen.alternative_of_id = None
+    # La elegida toma el lugar de la otra también en si es opcional o incluida.
+    chosen.is_optional, base.is_optional = base.is_optional, chosen.is_optional
+    base.alternative_of_id = chosen.id
+    for sibling in siblings:
+        sibling.alternative_of_id = chosen.id
+    session.add_all([chosen, base, *siblings])
     session.commit()

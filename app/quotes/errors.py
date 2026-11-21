@@ -16,6 +16,11 @@ class QuoteNotEditable(ApiError):
     detail = "Solo se edita una cotización en borrador. Devuélvela a borrador para cambiarla."
 
 
+class NotAnAlternative(ApiError):
+    status_code, code = 409, "not_an_alternative"
+    detail = "Ese servicio no es una alternativa de otro: ya está incluido."
+
+
 class QuoteWrongStatus(ApiError):
     status_code, code = 409, "quote_wrong_status"
     detail = "La cotización no está en el estado que permite esta acción."

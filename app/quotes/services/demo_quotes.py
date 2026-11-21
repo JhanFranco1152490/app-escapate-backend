@@ -35,8 +35,12 @@ from app.travel_requests.models import TravelRequest, TravelRequestStatus
 from app.travel_requests.services.demo_travel_requests import find_demo_request
 
 
-def _item_input(session: Session, demo: DemoItem) -> QuoteItemCreate:
+def _item_input(session: Session, demo: DemoItem, quote: Quote | None = None) -> QuoteItemCreate:
     references: dict[str, int | None] = {}
+    if demo.alternative_of is not None:
+        references["alternative_of_id"] = next(
+            item.id for item in quote.items if item.name == demo.alternative_of
+        )
     if demo.supplier_document is not None:
         supplier_id = session.exec(
             select(Supplier.id).where(same_document(Supplier, *demo.supplier_document))
@@ -127,7 +131,7 @@ def _create_quote(
             session, actor, QuoteCreate(travel_request_id=request.id)
         )
     for item in demo.items:
-        quote_items.add_item(session, quote.id, _item_input(session, item))
+        quote_items.add_item(session, quote.id, _item_input(session, item, quote))
     if demo.days_from_today:
         quote = _set_dates(session, quote, demo)
     if demo.conditions:

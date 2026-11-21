@@ -21,7 +21,7 @@ from app.common.fields import (
     required_text,
 )
 from app.common.schemas import InputSchema, OutputSchema, UserRef
-from app.quotes.models import QuoteStatus
+from app.quotes.models import QualityLevel, QuoteStatus
 from app.suppliers.service_types import ChargeUnit, Currency, ServiceType
 
 MAX_AMOUNT = Decimal("999999999999")
@@ -113,6 +113,7 @@ class QuoteItemInput(InputSchema):
     is_optional: bool = False
     # Otro servicio de la misma cotización del que este es una alternativa.
     alternative_of_id: RecordId | None = None
+    quality_level: QualityLevel | None = None
     currency: Currency
     unit_cost: Decimal = Field(ge=0, le=MAX_AMOUNT, max_digits=14, decimal_places=2)
     # Sin valor, el servicio toma el % por defecto de la cotización.
@@ -210,6 +211,7 @@ class QuoteItemOut(OutputSchema):
     charge_unit: ChargeUnit | None
     is_optional: bool
     alternative_of_id: int | None
+    quality_level: QualityLevel | None
     currency: Currency
     unit_cost: Decimal
     markup_percent: Decimal

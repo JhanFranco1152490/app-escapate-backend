@@ -46,6 +46,16 @@ from app.travel_requests.models import TravelRequest
 QUOTE_CODE = RecordCode("COT-")
 
 
+class QualityLevel(StrEnum):
+    """Categoría o nivel de calidad de una opción, para comparar alternativas del mismo
+    servicio (un hotel económico frente a uno superior)."""
+
+    ECONOMY = "economy"
+    STANDARD = "standard"
+    SUPERIOR = "superior"
+    LUXURY = "luxury"
+
+
 class QuoteStatus(StrEnum):
     DRAFT = "draft"
     SENT = "sent"
@@ -171,6 +181,9 @@ class QuoteItem(SQLModel, table=True):
             name="ck_quote_item_dates",
         ),
         CheckConstraint("quantity BETWEEN 1 AND 9999", name="ck_quote_item_quantity"),
+        CheckConstraint(
+            in_values("quality_level", QualityLevel), name="ck_quote_item_quality_level"
+        ),
         CheckConstraint("unit_cost >= 0", name="ck_quote_item_unit_cost"),
         CheckConstraint(
             "currency <> 'COP' OR unit_cost = trunc(unit_cost)",
@@ -207,6 +220,7 @@ class QuoteItem(SQLModel, table=True):
     alternative_of_id: int | None = foreign_key(
         "quote_item.id", ondelete="SET NULL", nullable=True
     )
+    quality_level: str | None = Field(default=None, max_length=10)
     currency: str = Field(sa_column=Column(CHAR(3), nullable=False))
     # Lo que cobra el proveedor por unidad, en su moneda: COP en pesos enteros, USD con
     # centavos. La conversión a pesos se hace al calcular el precio, con la tasa de la

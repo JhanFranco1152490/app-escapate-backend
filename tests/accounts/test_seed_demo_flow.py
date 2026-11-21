@@ -75,3 +75,13 @@ def test_running_it_twice_duplicates_nothing(seeded, capsys):
 
     assert [count(seeded, model) for model in FLOW_MODELS] == counts
     assert "creado" not in capsys.readouterr().out.replace("omitido", "")
+
+
+def test_the_draft_compares_options_by_quality_level(seeded):
+    draft = seeded.exec(select(Quote).where(Quote.status == QuoteStatus.DRAFT)).one()
+    levels = {item.name: (item.quality_level, item.alternative_of_id) for item in draft.items}
+
+    included = levels["Habitación familiar en Santa Marta"]
+    alternative = levels["Suite frente al mar en Santa Marta"]
+    assert (included[0], alternative[0]) == ("standard", "superior")
+    assert alternative[1] is not None and included[1] is None
