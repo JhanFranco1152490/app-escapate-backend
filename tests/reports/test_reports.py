@@ -85,6 +85,25 @@ def test_every_report_answers(api, kind):
     assert api.get(f"/api/reports/{kind}", params=period()).status_code == 200
 
 
+def test_the_expenses_report_needs_the_finance_permission(auth_client):
+    # Los gastos operativos son datos de finanzas: ver reportes no basta, como en los
+    # indicadores financieros.
+    without_finance = auth_client(permissions=["reports.view"])
+
+    assert without_finance.get("/api/reports/expenses", params=period()).status_code == 403
+
+    with_finance = auth_client(permissions=["reports.view", "finance.view"])
+
+    assert with_finance.get("/api/reports/expenses", params=period()).status_code == 200
+
+
+def test_the_other_reports_only_need_to_view_reports(auth_client):
+    viewer = auth_client(permissions=["reports.view"])
+
+    for kind in ["sales", "payments", "quotes", "requests"]:
+        assert viewer.get(f"/api/reports/{kind}", params=period()).status_code == 200
+
+
 def test_the_client_history_joins_every_stage(api, auth_client):
     sale = sold(api)
     api.post(
