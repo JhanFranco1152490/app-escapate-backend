@@ -129,6 +129,21 @@ PERMISSIONS: dict[str, PermissionInfo] = {
             "condiciones, enviarlas y registrar si el cliente las aceptó o rechazó."
         ),
     ),
+    "sales.view": PermissionInfo(
+        section="Comercial",
+        group="Ventas y pagos",
+        label="Ver",
+        description="Ver ventas y pagos",
+        help="Ver las ventas, el detalle del viaje vendido, los pagos del cliente y su saldo.",
+    ),
+    "sales.manage": PermissionInfo(
+        section="Comercial",
+        group="Ventas y pagos",
+        label="Gestionar",
+        description="Gestionar ventas y pagos",
+        requires=("sales.view",),
+        help="Registrar la venta de una cotización aceptada y los pagos o abonos del cliente.",
+    ),
     "suppliers.view": PermissionInfo(
         section="Oferta turística",
         group="Proveedores",
