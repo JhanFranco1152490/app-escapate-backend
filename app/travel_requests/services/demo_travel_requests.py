@@ -8,7 +8,7 @@ cerradas se cierran con el servicio de cierre, para respetar sus reglas.
 from datetime import timedelta
 from functools import partial
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.accounts.models import UserAccount
 from app.clients.models import Client
@@ -22,6 +22,19 @@ from app.travel_requests.services.request_management import close_request, creat
 
 def _find(session: Session, model: type, document: tuple[str, str]):
     return session.exec(select(model).where(same_document(model, *document))).one()
+
+
+def find_demo_request(
+    session: Session, client_document: tuple[str, str], destination: str
+) -> TravelRequest:
+    """La solicitud de demostración de ese cliente a ese destino. En el entorno compartido otras
+    personas registran solicitudes: si hay varias iguales, la más antigua, que creó la carga."""
+    client = _find(session, Client, client_document)
+    return session.exec(
+        select(TravelRequest)
+        .where(TravelRequest.client_id == client.id, TravelRequest.destination == destination)
+        .order_by(col(TravelRequest.id))
+    ).first()
 
 
 def _create(session: Session, actor: UserAccount, demo: DemoTravelRequest, client: Client) -> None:
