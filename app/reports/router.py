@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, Query
 
 from app.accounts.dependencies import SessionDep, require_permission
 from app.common.errors import error_responses
+from app.common.fields import RecordId
 from app.reports import services
+from app.reports.client_history import ClientHistory, client_history
 from app.reports.schemas import (
     CommercialIndicators,
     Dashboard,
@@ -35,6 +37,16 @@ def commercial(session: SessionDep, period: Annotated[Period, Query()]) -> Comme
 @router.get("/financial", dependencies=[can_view, can_view_finance], responses=_ERRORS)
 def financial(session: SessionDep, period: Annotated[Period, Query()]) -> FinancialIndicators:
     return services.financial(session, period)
+
+
+# El historial va en la ficha del cliente: basta con poder ver clientes.
+@router.get(
+    "/clients/{client_id}/history",
+    dependencies=[Depends(require_permission("clients.view"))],
+    responses=error_responses(401, 403, 404),
+)
+def get_client_history(client_id: RecordId, session: SessionDep) -> ClientHistory:
+    return client_history(session, client_id)
 
 
 @router.get("/{kind}", dependencies=[can_view], responses=_ERRORS)

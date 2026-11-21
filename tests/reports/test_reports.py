@@ -83,3 +83,27 @@ def test_every_report_answers(api, kind):
     sold(api)
 
     assert api.get(f"/api/reports/{kind}", params=period()).status_code == 200
+
+
+def test_the_client_history_joins_every_stage(api, auth_client):
+    sale = sold(api)
+    api.post(
+        f"/api/sales/{sale['id']}/payments",
+        json={"amount": 150_000, "paid_on": today().isoformat(), "method": "cash"},
+    )
+    viewer = auth_client(permissions=["clients.view"])
+
+    history = viewer.get(f"/api/reports/clients/{sale['client']['id']}/history").json()
+
+    assert (history["requests"], history["quotes"], history["sales"]) == (1, 1, 1)
+    assert (history["total_bought"], history["total_paid"], history["balance"]) == (
+        1_150_000,
+        150_000,
+        1_000_000,
+    )
+    assert {event["kind"] for event in history["events"]} == {
+        "request",
+        "quote",
+        "sale",
+        "payment",
+    }
