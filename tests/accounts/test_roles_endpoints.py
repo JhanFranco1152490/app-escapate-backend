@@ -271,6 +271,7 @@ def test_changing_a_role_from_the_api_applies_to_the_open_session(
         "clients.view",
         "quotes.manage",
         "quotes.view",
+        "reports.view",
         "sales.manage",
         "sales.view",
         "suppliers.view",

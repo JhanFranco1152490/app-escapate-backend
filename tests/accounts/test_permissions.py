@@ -21,6 +21,7 @@ def test_the_registry_lists_the_permissions_in_matrix_order():
         "sales.manage",
         "finance.view",
         "finance.manage",
+        "reports.view",
         "suppliers.view",
         "suppliers.manage",
         "tourist_services.view",
