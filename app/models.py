@@ -6,6 +6,7 @@ import app.accounts.models  # noqa: F401
 import app.clients.models  # noqa: F401
 import app.quotes.follow_up_models  # noqa: F401
 import app.quotes.models  # noqa: F401
+import app.sales.booking_models  # noqa: F401
 import app.sales.models  # noqa: F401
 import app.suppliers.models  # noqa: F401
 import app.suppliers.tourist_service_models  # noqa: F401
