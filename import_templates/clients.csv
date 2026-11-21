@@ -1,0 +1,4 @@
+client_type;first_name;last_name;business_name;document_type;document_number;birth_date;phone;email;city;contact_source;contact_source_detail;notes;data_consent
+person;Persona;Importada Uno;;CC;1000000301;1985-03-20;3100000301;persona.uno@example.com;Cúcuta;instagram;;Cliente frecuente;sí
+person;Persona;Importada Dos;;CE;1000000302;;3100000302;;Pamplona;other;Feria de turismo;;sí
+company;;;Empresa Importada SAS;NIT;9000003017;;3100000303;empresa.importada@example.com;Bogotá;referral;;;sí

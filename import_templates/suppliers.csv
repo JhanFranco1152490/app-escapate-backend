@@ -1,0 +1,3 @@
+trade_name;legal_name;document_type;document_number;categories;city;coverage_zone;contact_name;contact_role;contact_phone;contact_email;payment_terms;commission_rate;agreement_valid_until;notes
+Hotel Importado;Hotel Importado SAS;NIT;9000003024;lodging;Cartagena;;Contacto Hotel Importado;Reservas;3200000301;;Anticipo del 30 %;8.00;2027-12-31;
+Operador Importado;;NIT;9000003031;ground|tours;Medellín;Antioquia;Contacto Operador;;;operador.importado@example.com;;;;
