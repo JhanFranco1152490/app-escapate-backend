@@ -74,7 +74,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   │   ├── seeding.py     seed_if_new: carga de demostración repetible (omite lo que cumple
   │   │                  una condición; same_document, la de "mismo documento")
   │   └── pagination (paginate, map_results), money, dates (today, age_on), email
+  ├── imports/           carga inicial desde CSV (ver "Carga inicial desde CSV")
   └── <dominio>/         models.py, schemas.py, services/, *_router.py, templates/email/
+  import_templates/      plantillas CSV de la carga inicial, con datos inventados
   tests/
   ├── conftest.py        base de prueba, sesión con rollback, app, client, csrf_client
   ├── database.py        crear/borrar la base de prueba y su protección de nombre
@@ -101,7 +103,11 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   | `clients`  | `accounts` (`models.UserAccount`: quién registró y quién autorizó los datos) |
   | `suppliers` | `accounts` (`models.UserAccount`: quién registró y quién desactivó) |
   | `travel_requests` | `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el nombre del cliente; `models.Traveler`, para los viajeros de la solicitud) y `accounts` (`models.UserAccount` y `RolePermission`: quién registró, el asesor responsable y quién puede serlo) |
-  | `quotes` | `travel_requests` (`models.TravelRequest`, `services.request_management.ensure_open` y `services.request_status.refresh_status`: la cotización nace de una solicitud abierta y la pasa a cotizada), `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el cliente), `suppliers` (`models.Supplier`, `tourist_service_models.TouristService` y `service_types`: los servicios del catálogo) y `accounts` (`models.UserAccount`) |
+  | `quotes` | `travel_requests` (`models.TravelRequest`, `services.request_management.ensure_open` y `services.request_status.refresh_status`: la cotización nace de una solicitud abierta y la pasa a cotizada; `services.demo_travel_requests.find_demo_request`, para la carga de demostración), `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el cliente), `suppliers` (`models.Supplier`, `tourist_service_models.TouristService` y `service_types`: los servicios del catálogo) y `accounts` (`models.UserAccount`) |
+  | `sales` | `quotes` (`models.Quote`/`QuoteItem` y `services.quote_queries.get_quote`, con sus totales: se vende una cotización aceptada; `services.demo_quotes.find_demo_quote`, para la carga de demostración), `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el cliente), `suppliers` (`models.Supplier` y `service_types`: el proveedor y el tipo de cada reserva) y `accounts` (`models.UserAccount`) |
+  | `finance` | `sales` (`models.Sale`/`ClientPayment`: costos reales de una venta e ingresos de caja; `demo_sales.find_demo_sale`), `suppliers` (`models.Supplier`) y `accounts` (`models.UserAccount`) |
+  | `reports` | solo lee los `models.py` de `travel_requests`, `quotes`, `sales`, `finance`, `clients`, `suppliers` y `accounts`. Nadie importa de `reports` |
+  | `imports` | `clients` (`schemas.ClientCreate`, `services.client_management.create_client`, `models.Client`) y `suppliers` (`schemas.SupplierCreate`, `services.supplier_management.create_supplier`, `models.Supplier`). Nadie importa de `imports` |
 
 - **Cuentas y acceso (`app/accounts/`):**
   - `UserAccount` (tabla `user_account`: `user` es palabra reservada en PostgreSQL) con un
@@ -155,24 +161,33 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     `ALLOW_DEMO_SEED=true` el comando se niega a correr (esa variable solo se define en
     staging, nunca en producción). Crea cuatro cuentas ficticias, una por rol sembrado
     (`demo_data.py`; las contraseñas están en el código a propósito: son cuentas inventadas
-    que solo existen en staging) y, con `--with-demo-data`, unos pocos clientes, viajeros y
-    proveedores ficticios, con servicios turísticos y tarifas, y solicitudes de viaje de los
-    clientes de demostración con sus viajeros (`demo_data.py` de `clients`, `suppliers` y
-    `travel_requests`,
-    cargados con sus servicios de alta para respetar sus validaciones). Reglas:
+    que solo existen en staging) y, con `--with-demo-data`, el flujo comercial completo:
+    clientes, viajeros y proveedores ficticios, con servicios turísticos y tarifas;
+    solicitudes de viaje con sus viajeros; un paquete; cuatro cotizaciones (una en borrador
+    armada desde el paquete, una enviada con seguimientos en rojo y amarillo, y dos
+    aceptadas); las dos ventas, una con saldo y otra pagada, con sus reservas preparadas y
+    algunas confirmadas; sus costos reales y unos gastos de operación (`demo_data.py` de
+    `clients`, `suppliers`, `travel_requests`, `quotes`, `sales` y `finance`, cargados con
+    los servicios de la aplicación para respetar sus validaciones y transiciones). Así el
+    dashboard y los reportes no salen vacíos. Reglas:
     - Repetible: lo que ya existe se omite y se informa, no falla ni duplica. Clientes,
       viajeros y proveedores se reconocen por su documento (`same_document`); una solicitud,
       por su cliente y su destino, y sus viajeros se omiten si ya tiene alguno; un servicio,
       por su proveedor y su nombre, y se omite junto con sus tarifas (sus fechas son
-      relativas a hoy: cargarlas otro día agregaría tarifas nuevas). Se mira antes de crear
-      y no se atrapa el error del servicio, porque un viajero repetido puede fallar por
-      varias reglas a la vez.
+      relativas a hoy: cargarlas otro día agregaría tarifas nuevas). Se omiten también una
+      solicitud que ya tiene cotización (o que alguien cerró), una cotización que ya tiene
+      venta (o que no quedó aceptada), una venta que ya tiene costos reales, y un paquete o
+      un gasto con el mismo nombre. Si hay varias solicitudes iguales en el entorno
+      compartido, se usa la más antigua (`find_demo_request`), la que creó la carga. Se mira
+      antes de crear y no se atrapa el error del servicio, porque un viajero repetido puede
+      fallar por varias reglas a la vez.
     - Los roles se buscan todos antes de crear nada (el Administrador por `is_protected`, los
       demás por nombre): si falta uno no queda una carga a medias.
     - La salida son dos tablas, nunca contraseñas: las cuentas (rol, documento, correo,
       estado) y los registros (tipo, registro, estado; el registro es el documento, o el
       nombre y el proveedor en un servicio, o el destino y el cliente en una solicitud).
-    - Los datos de demostración usan al Administrador de demostración como autor.
+    - Los datos de demostración usan al Administrador de demostración como autor, salvo las
+      cotizaciones y sus seguimientos, que los registra el asesor responsable de la solicitud.
   - Gestión de usuarios (`users_router.py`, permisos `users.view` y `users.manage`, que la
     migración asigna al rol Administrador): `services/user_queries.py` lee (lista con
     búsqueda sin tildes, ficha, ingresos) y `services/user_management.py` escribe (alta,
@@ -394,6 +409,68 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     proveedor es solo de referencia.
   - Los servicios leen la cotización con `FOR SHARE` (un envío simultáneo espera o se ve) y
     no cambian su `version`.
+  - **Motor de liquidación** (`pricing.py`, la única fuente del cálculo): precio de un
+    servicio = costo en pesos × (1 + % / 100), salvo `sale_price_override`. Los opcionales y
+    las alternativas no suman al total; el total trae costo, venta, ganancia, margen sobre el
+    precio, valor por persona y abono (`deposit_percent`). Un servicio en USD sin tasa deja
+    `missing_exchange_rate`. La regla está pendiente de confirmar con la agencia.
+  - **Versiones y duplicados** (`services/quote_copies.py`): los dos crean un borrador con
+    los mismos datos y servicios en la misma solicitud; la versión apunta a la original
+    (`previous_quote_id`) y sube `revision`, el duplicado empieza en 1. La original no cambia.
+  - **Alternativas:** un servicio con `alternative_of_id` es otra opción de un servicio
+    incluido de la misma cotización (un solo nivel). No suma al total.
+  - **Oferta** (`services/offer.py`): servicios activos con sus tarifas vigentes, para elegir
+    qué cotizar.
+  - **Paquetes** (`package_models.py`, `services/packages.py`, `packages_router.py`): una
+    combinación reutilizable de servicios con la misma forma que los de una cotización (se
+    copian tal cual y se calculan con el mismo motor), sin fechas. Cotizar desde un paquete
+    (`POST /api/quotes/from-package`) crea la cotización de la solicitud y le copia servicios,
+    % y tasa en una sola transacción; un paquete inactivo no se cotiza. Mismos permisos que
+    las cotizaciones.
+  - **Seguimientos** (`follow_up_models.py`, `services/follow_ups.py`,
+    `follow_ups_router.py`): se cuelgan de una cotización que no está decidida. El semáforo
+    no se guarda: rojo si venció sin registrarse, amarillo si vence hoy o mañana, verde si
+    es después (`alert_color`, fecha de Bogotá), sin tarea programada. Registrar el resultado
+    puede programar el siguiente en el mismo paso. `GET /api/follow-ups/alerts` da los
+    conteos del menú.
+- **Ventas, pagos y reservas (`app/sales/`):** la venta (`Sale`) sale de una cotización
+  aceptada, una sola vez, y copia precio, costo estimado y datos del viaje: si la cotización
+  se ajusta después, lo vendido no cambia. Permisos `sales.view` y `sales.manage` (rol
+  protegido, Asesor comercial y Operativo); `services.py` y `router.py` (`/api/sales`).
+  Reglas:
+  - Los pagos del cliente (`ClientPayment`) son abonos en pesos enteros; un abono no pasa el
+    saldo. Venta y pago leen la cotización o la venta con `FOR UPDATE`: dos ventas de la misma
+    cotización, o dos abonos simultáneos que juntos pasan el saldo, no quedan guardados los
+    dos. Saldo y estado (`pending`, `partial`, `paid`) se calculan, no se guardan.
+  - **Reservas** (`booking_models.py`, `booking_services.py`): preparar crea una reserva por
+    cada servicio incluido de la cotización vendida (`ON CONFLICT DO NOTHING`: repetirlo solo
+    agrega las que falten). Estados `to_request`, `requested`, `confirmed` y `cancelled`, con
+    código de confirmación.
+- **Finanzas (`app/finance/`):** costos reales de cada venta (`ActualCost`, lo que se le paga
+  a los proveedores; sin `paid_on`, se le debe) y gastos de operación de la agencia
+  (`OperatingExpense`). Permisos `finance.view` y `finance.manage` (rol protegido y
+  Operativo). La rentabilidad de una venta usa el costo real si ya hay alguno y, si no, el
+  estimado. El resumen de caja (`/api/finance/summary`) va por fecha de pago: entra lo que
+  pagan los clientes y sale lo pagado a proveedores y los gastos. Nada de eso se guarda.
+- **Reportes (`app/reports/`):** solo lecturas sobre los demás dominios. Permiso
+  `reports.view` (rol protegido, Asesor comercial y Operativo); el indicador financiero pide
+  además `finance.view`. Dashboard, indicadores comerciales y financieros por período, y
+  reportes en tabla (`sales`, `payments`, `quotes`, `expenses`, `requests`) que el frontend
+  exporta. El historial del cliente (`client_history.py`,
+  `/api/reports/clients/{id}/history`) junta solicitudes, cotizaciones, ventas y pagos en
+  una línea de tiempo y pide solo `clients.view`, porque va en la ficha del cliente.
+- **Carga inicial desde CSV (`app/imports/`):**
+  `uv run python -m app.cli import-csv {clients,suppliers} ARCHIVO --as CORREO [--dry-run]`.
+  `csv_rows.py` lee el archivo (BOM, `;` o `,`, celdas vacías, listas con `|`, sí/no) e
+  `importer.py` pasa cada fila por el mismo esquema y servicio de alta de la API. Reglas:
+  - Una fila con errores no detiene las demás; una con documento ya registrado (o repetido
+    en el archivo) se omite. Una columna desconocida detiene todo antes de guardar.
+  - El informe da número de fila, estado y campo, sin repetir los datos de la persona, y
+    sale con código 1 si alguna fila tuvo errores. `--dry-run` valida sin guardar (no
+    revisa las reglas que solo comprueba la base).
+  - `--as` es el correo de una cuenta activa, que queda como autora y como quien registró la
+    autorización de datos de cada cliente. Plantillas con datos inventados en
+    `import_templates/` (con su `README.md`).
 - **Base de datos:** PostgreSQL (`DATABASE_URL` en `.env`, ver `app/core/config.py`).
   Driver `psycopg` 3. La configuración acepta `postgres://` y `postgresql://` (como la
   entregan los proveedores) y la normaliza a `postgresql+psycopg://`.
@@ -517,17 +594,6 @@ El agente corre y deja en verde, y si algo falla lo corrige o lo dice en el PR:
   más externo, por fuera de `CORSMiddleware`, así que desde otro subdominio el frontend lo ve
   como un fallo de red y no como `internal_error`. La respuesta sí tiene la forma común (se
   ve con `curl` o en el log); no confundirlo con un problema de CORS de la configuración.
-
-## Pendiente antes de los demás modelos del dominio
-
-Antes de modelar los borradores de alternativas, las cotizaciones y las ventas hay que
-resolver las preguntas abiertas del modelo de datos del
-workspace (`docs/CONTEXTO.md`) con el agente `arquitecto`. Ya existen las cuentas, roles y
-sesiones ("Cuentas y acceso"), los clientes y viajeros ("Clientes y viajeros"), los
-proveedores con sus servicios turísticos y tarifas ("Proveedores") y las solicitudes de
-viaje con sus viajeros ("Solicitudes de viaje"). Los viajeros ya tienen su decisión: una
-lista por etapa, así que la cotización y la venta tendrán su propia tabla, copiada de la
-etapa anterior al crearse, y no leerán `travel_request_traveler`.
 
 ## Stack
 
