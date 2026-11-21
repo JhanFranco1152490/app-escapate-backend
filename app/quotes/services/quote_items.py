@@ -36,7 +36,7 @@ def _locked_draft(session: Session, quote_id: int) -> Quote:
     return quote
 
 
-def _references(
+def check_references(
     session: Session,
     quote_id: int,
     data: QuoteItemInput,
@@ -99,7 +99,7 @@ def _item(session: Session, quote_id: int, item_id: int) -> QuoteItem:
 
 def add_item(session: Session, quote_id: int, data: QuoteItemCreate) -> QuoteItem:
     quote = _locked_draft(session, quote_id)
-    supplier_id = _references(session, quote.id, data)
+    supplier_id = check_references(session, quote.id, data)
     item = QuoteItem(quote_id=quote.id, **_values(data, quote, supplier_id))
     session.add(item)
     session.commit()
@@ -112,7 +112,7 @@ def update_item(session: Session, quote_id: int, item_id: int, data: QuoteItemUp
     item = _item(session, quote_id, item_id)
     if data.expected_version != item.version:
         raise StaleVersion()
-    supplier_id = _references(session, quote.id, data, current=item)
+    supplier_id = check_references(session, quote.id, data, current=item)
     for name, value in _values(data, quote, supplier_id).items():
         setattr(item, name, value)
     session.add(item)
