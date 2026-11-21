@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.config import settings as default_settings
 from app.core.rate_limit import limiter
 from app.core.security.csrf import CSRF_HEADER, csrf_protect
+from app.finance.router import router as finance_router
 from app.quotes.follow_ups_router import router as follow_ups_router
 from app.quotes.router import router as quotes_router
 from app.sales.router import bookings_router
@@ -54,6 +55,7 @@ def create_app(settings: Settings = default_settings) -> FastAPI:
     app.include_router(follow_ups_router)
     app.include_router(sales_router)
     app.include_router(bookings_router)
+    app.include_router(finance_router)
 
     @app.middleware("http")
     async def no_store(request: Request, call_next):
