@@ -162,6 +162,16 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         requires=("finance.view",),
         help="Registrar los costos reales y pagos a proveedores, y los gastos operativos.",
     ),
+    "reports.view": PermissionInfo(
+        section="Finanzas",
+        group="Dashboard y reportes",
+        label="Ver",
+        description="Ver dashboard y reportes",
+        help=(
+            "Ver el dashboard, los indicadores comerciales y generar y exportar reportes. Los "
+            "indicadores financieros piden además ver finanzas."
+        ),
+    ),
     "suppliers.view": PermissionInfo(
         section="Oferta turística",
         group="Proveedores",
