@@ -128,6 +128,14 @@ def update_item(
     return quote_items.update_item(session, quote_id, item_id, data)
 
 
+@router.post(
+    "/{quote_id}/items/{item_id}/choose", dependencies=[can_manage], responses=_WRITE_ERRORS
+)
+def choose_alternative(quote_id: RecordId, item_id: RecordId, session: SessionDep) -> QuoteDetail:
+    quote_items.choose_alternative(session, quote_id, item_id)
+    return quote_queries.get_quote(session, quote_id)
+
+
 @router.delete(
     "/{quote_id}/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,

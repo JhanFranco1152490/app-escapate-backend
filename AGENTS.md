@@ -417,8 +417,16 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - **Versiones y duplicados** (`services/quote_copies.py`): los dos crean un borrador con
     los mismos datos y servicios en la misma solicitud; la versión apunta a la original
     (`previous_quote_id`) y sube `revision`, el duplicado empieza en 1. La original no cambia.
-  - **Alternativas:** un servicio con `alternative_of_id` es otra opción de un servicio
-    incluido de la misma cotización (un solo nivel). No suma al total.
+  - **Alternativas y borrador de alternativas:** un servicio con `alternative_of_id` es otra
+    opción de un servicio incluido de la misma cotización (un solo nivel) y no suma al total.
+    Cada servicio puede llevar su nivel de calidad (`quality_level`: `economy`, `standard`,
+    `superior`, `luxury`; también en los paquetes y en las copias), para comparar opciones.
+    `POST /api/quotes/{id}/items/{item_id}/choose` pasa la alternativa a la cotización: la
+    elegida queda incluida (y toma el `is_optional` del otro), el servicio que estaba queda
+    como alternativa de ella y las demás alternativas pasan a ser de la elegida, así se puede
+    volver a cambiar. Solo en borrador (`409 quote_not_editable`); elegir un servicio que no
+    es alternativa da `409 not_an_alternative`. El borrador de la solicitud es la cotización en
+    `draft`: no hay una entidad aparte.
   - **Oferta** (`services/offer.py`): servicios activos con sus tarifas vigentes, para elegir
     qué cotizar.
   - **Paquetes** (`package_models.py`, `services/packages.py`, `packages_router.py`): una

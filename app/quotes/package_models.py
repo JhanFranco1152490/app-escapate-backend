@@ -34,6 +34,7 @@ from app.common.columns import (
     versioned,
 )
 from app.quotes import pricing
+from app.quotes.models import QualityLevel
 from app.suppliers.models import Supplier
 from app.suppliers.service_types import ChargeUnit, Currency, ServiceType
 from app.suppliers.tourist_service_models import TouristService
@@ -97,6 +98,9 @@ class PackageItem(SQLModel, table=True):
     __table_args__ = (
         CheckConstraint(in_values("service_type", ServiceType), name="ck_package_item_type"),
         CheckConstraint(in_values("currency", Currency), name="ck_package_item_currency"),
+        CheckConstraint(
+            in_values("quality_level", QualityLevel), name="ck_package_item_quality_level"
+        ),
         CheckConstraint(in_values("charge_unit", ChargeUnit), name="ck_package_item_charge_unit"),
         CheckConstraint("quantity BETWEEN 1 AND 9999", name="ck_package_item_quantity"),
         CheckConstraint("unit_cost >= 0", name="ck_package_item_unit_cost"),
@@ -119,6 +123,7 @@ class PackageItem(SQLModel, table=True):
     quantity: int = Field(sa_column=Column(Integer, nullable=False))
     charge_unit: str | None = Field(default=None, max_length=30)
     is_optional: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    quality_level: str | None = Field(default=None, max_length=10)
     currency: str = Field(sa_column=Column(CHAR(3), nullable=False))
     unit_cost: Decimal = Field(sa_column=Column(Numeric(14, 2), nullable=False))
     markup_percent: Decimal = Field(sa_column=Column(Numeric(5, 2), nullable=False))

@@ -1,7 +1,8 @@
 """Paquete, cotizaciones y seguimientos de demostración, sobre las solicitudes, los proveedores
 y los servicios de demostración. Todo inventado.
 
-Cada cotización muestra un momento del embudo: una en borrador (armada desde el paquete), una
+Cada cotización muestra un momento del embudo: una en borrador (armada desde el paquete, con
+una alternativa superior del hotel para comparar), una
 enviada con seguimientos en rojo y en amarillo, y dos aceptadas, que la carga de ventas
 convierte en venta. Las fechas son días desde la carga, para que siempre sean viajes futuros
 y los colores de los seguimientos salgan iguales sin importar cuándo se corra.
@@ -29,6 +30,8 @@ class DemoItem:
     service_name: str | None = None
     start_in: int | None = None
     end_in: int | None = None
+    # Nombre del servicio de la misma cotización del que este es una alternativa.
+    alternative_of: str | None = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,7 @@ _FAMILY_ROOM = DemoItem(
         "service_type": "lodging",
         "name": "Habitación familiar en Santa Marta",
         "details": "Desayuno incluido.",
+        "quality_level": "standard",
         "quantity": 4,
         "charge_unit": "per_night",
         "currency": "COP",
@@ -256,6 +260,22 @@ DEMO_QUOTES: tuple[DemoQuote, ...] = (
         "Cartagena y Santa Marta",
         QuoteStatus.DRAFT,
         package_name="Santa Marta en familia",
+        items=(
+            DemoItem(
+                None,
+                {
+                    "service_type": "lodging",
+                    "name": "Suite frente al mar en Santa Marta",
+                    "details": "Desayuno y cena incluidos.",
+                    "quality_level": "superior",
+                    "quantity": 4,
+                    "charge_unit": "per_night",
+                    "currency": "COP",
+                    "unit_cost": "890000",
+                },
+                alternative_of="Habitación familiar en Santa Marta",
+            ),
+        ),
         days_from_today={"departure_date": 65, "return_date": 69},
         follow_ups=(DemoFollowUp(5, "call", "Presentar la propuesta del paquete"),),
     ),

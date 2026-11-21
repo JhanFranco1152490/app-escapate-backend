@@ -47,6 +47,7 @@ _ITEM_FIELDS = (
     "quantity",
     "charge_unit",
     "is_optional",
+    "quality_level",
     "currency",
     "unit_cost",
     "markup_percent",
