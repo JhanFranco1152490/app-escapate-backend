@@ -80,11 +80,13 @@ def _check_validity(valid_until, current=None) -> None:
         raise InvalidFields(fields={"valid_until": [VALIDITY_IN_PAST]})
 
 
-def create_quote(session: Session, actor: UserAccount, data: QuoteCreate) -> Quote:
+def start_quote(session: Session, actor: UserAccount, travel_request_id: int) -> Quote:
+    """Arma la cotización desde la solicitud, sin `commit()`: quien la llama completa lo suyo
+    (por ejemplo, copiar los servicios de un paquete) en la misma transacción."""
     # FOR UPDATE: crear la cotización cambia el estado de la solicitud, y un cierre
     # simultáneo tiene que esperar o verse.
     request = session.exec(
-        select(TravelRequest).where(TravelRequest.id == data.travel_request_id).with_for_update()
+        select(TravelRequest).where(TravelRequest.id == travel_request_id).with_for_update()
     ).first()
     if request is None:
         raise InvalidFields(fields={"travel_request_id": [UNKNOWN_REQUEST]})
@@ -108,7 +110,11 @@ def create_quote(session: Session, actor: UserAccount, data: QuoteCreate) -> Quo
     session.add(quote)
     session.flush()
     refresh_status(session, request)
-    return _save(session, quote)
+    return quote
+
+
+def create_quote(session: Session, actor: UserAccount, data: QuoteCreate) -> Quote:
+    return _save(session, start_quote(session, actor, data.travel_request_id))
 
 
 def update_general(session: Session, quote_id: int, data: QuoteGeneralUpdate) -> Quote:
