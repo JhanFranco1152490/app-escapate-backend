@@ -73,5 +73,7 @@ def totals(lines: list[LineAmounts], travelers: int, deposit_percent: Decimal | 
         ),
         per_person=round_to_peso(Decimal(sale) / travelers) if travelers else None,
         deposit=apply_percentage(sale, deposit_percent) if deposit_percent else None,
-        missing_exchange_rate=any(line.sale is None for line in lines),
+        # Sin costo en pesos solo pasa con un servicio en dólares y sin tasa. Aunque tenga el
+        # precio escrito a mano, su costo falta: los totales lo cuentan como cero.
+        missing_exchange_rate=any(line.cost is None for line in lines),
     )
