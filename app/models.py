@@ -4,6 +4,7 @@ from sqlmodel import SQLModel
 
 import app.accounts.models  # noqa: F401
 import app.clients.models  # noqa: F401
+import app.finance.models  # noqa: F401
 import app.quotes.follow_up_models  # noqa: F401
 import app.quotes.models  # noqa: F401
 import app.sales.booking_models  # noqa: F401

@@ -144,6 +144,24 @@ PERMISSIONS: dict[str, PermissionInfo] = {
         requires=("sales.view",),
         help="Registrar la venta de una cotización aceptada y los pagos o abonos del cliente.",
     ),
+    "finance.view": PermissionInfo(
+        section="Finanzas",
+        group="Finanzas",
+        label="Ver",
+        description="Ver finanzas",
+        help=(
+            "Ver los costos reales y la rentabilidad de cada venta, los gastos operativos y "
+            "los ingresos y egresos de la agencia."
+        ),
+    ),
+    "finance.manage": PermissionInfo(
+        section="Finanzas",
+        group="Finanzas",
+        label="Gestionar",
+        description="Gestionar finanzas",
+        requires=("finance.view",),
+        help="Registrar los costos reales y pagos a proveedores, y los gastos operativos.",
+    ),
     "suppliers.view": PermissionInfo(
         section="Oferta turística",
         group="Proveedores",
