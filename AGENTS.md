@@ -461,10 +461,10 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   estimado. El resumen de caja (`/api/finance/summary`) va por fecha de pago: entra lo que
   pagan los clientes y sale lo pagado a proveedores y los gastos. Nada de eso se guarda.
 - **Reportes (`app/reports/`):** solo lecturas sobre los demás dominios. Permiso
-  `reports.view` (rol protegido, Asesor comercial y Operativo); el indicador financiero pide
-  además `finance.view`. Dashboard, indicadores comerciales y financieros por período, y
-  reportes en tabla (`sales`, `payments`, `quotes`, `expenses`, `requests`) que el frontend
-  exporta. El historial del cliente (`client_history.py`,
+  `reports.view` (rol protegido, Asesor comercial y Operativo); el indicador financiero y el
+  reporte de gastos (`expenses`) piden además `finance.view`. Dashboard, indicadores
+  comerciales y financieros por período, y reportes en tabla (`sales`, `payments`, `quotes`,
+  `expenses`, `requests`) que el frontend exporta. El historial del cliente (`client_history.py`,
   `/api/reports/clients/{id}/history`) junta solicitudes, cotizaciones, ventas y pagos en
   una línea de tiempo y pide solo `clients.view`, porque va en la ficha del cliente.
 - **Carga inicial desde CSV (`app/imports/`):**
