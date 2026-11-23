@@ -466,7 +466,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   comerciales y financieros por período, y reportes en tabla (`sales`, `payments`, `quotes`,
   `expenses`, `requests`) que el frontend exporta. El historial del cliente (`client_history.py`,
   `/api/reports/clients/{id}/history`) junta solicitudes, cotizaciones, ventas y pagos en
-  una línea de tiempo y pide solo `clients.view`, porque va en la ficha del cliente.
+  una línea de tiempo y va en la ficha del cliente, pero pide el permiso de cada cosa que
+  muestra (`clients.view`, `travel_requests.view`, `quotes.view` y `sales.view`): si falta
+  alguno responde 403 y la ficha no muestra la sección.
 - **Carga inicial desde CSV (`app/imports/`):**
   `uv run python -m app.cli import-csv {clients,suppliers} ARCHIVO --as CORREO [--dry-run]`.
   `csv_rows.py` lee el archivo (BOM, `;` o `,`, celdas vacías, listas con `|`, sí/no) e

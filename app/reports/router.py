@@ -43,10 +43,14 @@ def financial(session: SessionDep, period: Annotated[Period, Query()]) -> Financ
     return services.financial(session, period)
 
 
-# El historial va en la ficha del cliente: basta con poder ver clientes.
+# El historial va en la ficha del cliente, pero mezcla solicitudes, cotizaciones, ventas y pagos:
+# pide el permiso de cada uno, no solo el de clientes. Sin alguno, la ficha no lo muestra.
 @router.get(
     "/clients/{client_id}/history",
-    dependencies=[Depends(require_permission("clients.view"))],
+    dependencies=[
+        Depends(require_permission(code))
+        for code in ("clients.view", "travel_requests.view", "quotes.view", "sales.view")
+    ],
     responses=error_responses(401, 403, 404),
 )
 def get_client_history(client_id: RecordId, session: SessionDep) -> ClientHistory:

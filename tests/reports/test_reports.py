@@ -104,13 +104,16 @@ def test_the_other_reports_only_need_to_view_reports(auth_client):
         assert viewer.get(f"/api/reports/{kind}", params=period()).status_code == 200
 
 
+HISTORY = ["clients.view", "travel_requests.view", "quotes.view", "sales.view"]
+
+
 def test_the_client_history_joins_every_stage(api, auth_client):
     sale = sold(api)
     api.post(
         f"/api/sales/{sale['id']}/payments",
         json={"amount": 150_000, "paid_on": today().isoformat(), "method": "cash"},
     )
-    viewer = auth_client(permissions=["clients.view"])
+    viewer = auth_client(permissions=HISTORY)
 
     history = viewer.get(f"/api/reports/clients/{sale['client']['id']}/history").json()
 
@@ -126,3 +129,15 @@ def test_the_client_history_joins_every_stage(api, auth_client):
         "sale",
         "payment",
     }
+
+
+@pytest.mark.parametrize("missing", HISTORY)
+def test_the_client_history_needs_every_permission_it_shows(api, auth_client, missing):
+    # La línea de tiempo mezcla solicitudes, cotizaciones, ventas y pagos: ver clientes no da
+    # acceso a lo que el rol no puede ver por su cuenta.
+    sale = sold(api)
+    viewer = auth_client(permissions=[code for code in HISTORY if code != missing])
+
+    response = viewer.get(f"/api/reports/clients/{sale['client']['id']}/history")
+
+    assert response.status_code == 403
