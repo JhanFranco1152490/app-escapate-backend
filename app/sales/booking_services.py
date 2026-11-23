@@ -77,13 +77,18 @@ def list_bookings(
 
 
 def prepare(session: Session, sale_id: int) -> list[Booking]:
-    """Crea una reserva por cada servicio incluido de la cotización vendida. Repetirlo no
+    """Crea una reserva por cada servicio incluido de la cotización vendida, sin los opcionales
+    ni las alternativas que no se eligieron (no suman al precio de la venta). Repetirlo no
     duplica nada: solo agrega los que falten."""
     sale = session.get(Sale, sale_id)
     if sale is None:
         raise NotFound()
     items = session.exec(
-        select(QuoteItem).where(QuoteItem.quote_id == sale.quote_id, ~col(QuoteItem.is_optional))
+        select(QuoteItem).where(
+            QuoteItem.quote_id == sale.quote_id,
+            ~col(QuoteItem.is_optional),
+            col(QuoteItem.alternative_of_id).is_(None),
+        )
     ).all()
     for item in items:
         session.exec(

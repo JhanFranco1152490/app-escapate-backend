@@ -11,6 +11,8 @@ from sqlalchemy.orm import joinedload, selectinload
 from sqlmodel import Session, col, select
 
 from app.accounts.models import UserAccount
+from app.audit.models import DeletionKind
+from app.audit.services import record_deletion
 from app.clients.models import Client
 from app.clients.services.client_queries import display_name
 from app.common.errors import ApiError, InvalidFields, NotFound
@@ -138,10 +140,20 @@ def add_payment(session: Session, actor: UserAccount, sale_id: int, data: Paymen
     return get_sale(session, sale_id)
 
 
-def remove_payment(session: Session, sale_id: int, payment_id: int) -> Sale:
+def remove_payment(session: Session, actor: UserAccount, sale_id: int, payment_id: int) -> Sale:
     payment = session.get(ClientPayment, payment_id)
     if payment is None or payment.sale_id != sale_id:
         raise NotFound()
+    record_deletion(
+        session,
+        actor,
+        kind=DeletionKind.CLIENT_PAYMENT,
+        record_id=payment.id,
+        sale_id=sale_id,
+        description=payment.method,
+        amount=payment.amount,
+        occurred_on=payment.paid_on,
+    )
     session.delete(payment)
     session.commit()
     session.expire_all()

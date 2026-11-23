@@ -423,6 +423,38 @@ def test_a_quote_without_services_cannot_be_sent(manager):
     assert (response.status_code, response.json()["code"]) == (409, "quote_without_items")
 
 
+def test_a_quote_with_a_dollar_service_and_no_rate_cannot_be_sent(manager):
+    # Sin tasa el costo en pesos queda en cero y la venta copiaría una ganancia inflada.
+    quote = create(manager, TravelRequestFactory())
+    manager.post(
+        f"/api/quotes/{quote['id']}/items", json=new_item(currency="USD", unit_cost="100.00")
+    )
+
+    response = transition(manager, quote, "send")
+
+    assert (response.status_code, response.json()["code"]) == (409, "exchange_rate_missing")
+    assert manager.get(f"/api/quotes/{quote['id']}").json()["status"] == "draft"
+
+
+def test_a_quote_with_a_dollar_service_is_sent_once_it_has_a_rate(manager):
+    quote = create(manager, TravelRequestFactory())
+    manager.post(
+        f"/api/quotes/{quote['id']}/items", json=new_item(currency="USD", unit_cost="100.00")
+    )
+    priced = manager.put(
+        f"/api/quotes/{quote['id']}/pricing",
+        json={
+            "default_markup_percent": "15",
+            "exchange_rate": "4000",
+            "expected_version": quote["version"],
+        },
+    ).json()
+
+    response = transition(manager, priced, "send")
+
+    assert (response.status_code, response.json()["status"]) == (200, "sent")
+
+
 def test_a_sent_quote_is_no_longer_editable(manager):
     quote = create(manager, TravelRequestFactory())
     manager.post(f"/api/quotes/{quote['id']}/items", json=new_item())

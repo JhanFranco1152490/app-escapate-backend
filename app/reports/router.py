@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.accounts.dependencies import SessionDep, require_permission
+from app.accounts.dependencies import CurrentUser, SessionDep, require_permission
 from app.common.errors import error_responses
 from app.common.fields import RecordId
 from app.reports import services
@@ -19,8 +19,12 @@ from app.reports.schemas import (
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 can_view = Depends(require_permission("reports.view"))
-can_view_finance = Depends(require_permission("finance.view"))
+_check_finance = require_permission("finance.view")
+can_view_finance = Depends(_check_finance)
 _ERRORS = error_responses(401, 403)
+# Los reportes que traen datos de finanzas piden además ese permiso, como los indicadores
+# financieros: sin él, ver reportes sería una puerta lateral a los gastos de la agencia.
+_FINANCE_REPORTS = {ReportKind.EXPENSES}
 
 
 @router.get("/dashboard", dependencies=[can_view], responses=_ERRORS)
@@ -39,10 +43,14 @@ def financial(session: SessionDep, period: Annotated[Period, Query()]) -> Financ
     return services.financial(session, period)
 
 
-# El historial va en la ficha del cliente: basta con poder ver clientes.
+# El historial va en la ficha del cliente, pero mezcla solicitudes, cotizaciones, ventas y pagos:
+# pide el permiso de cada uno, no solo el de clientes. Sin alguno, la ficha no lo muestra.
 @router.get(
     "/clients/{client_id}/history",
-    dependencies=[Depends(require_permission("clients.view"))],
+    dependencies=[
+        Depends(require_permission(code))
+        for code in ("clients.view", "travel_requests.view", "quotes.view", "sales.view")
+    ],
     responses=error_responses(401, 403, 404),
 )
 def get_client_history(client_id: RecordId, session: SessionDep) -> ClientHistory:
@@ -50,5 +58,9 @@ def get_client_history(client_id: RecordId, session: SessionDep) -> ClientHistor
 
 
 @router.get("/{kind}", dependencies=[can_view], responses=_ERRORS)
-def report(kind: ReportKind, session: SessionDep, period: Annotated[Period, Query()]) -> Report:
+def report(
+    kind: ReportKind, user: CurrentUser, session: SessionDep, period: Annotated[Period, Query()]
+) -> Report:
+    if kind in _FINANCE_REPORTS:
+        _check_finance(user, session)
     return services.report(session, kind, period)

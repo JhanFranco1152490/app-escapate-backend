@@ -22,6 +22,20 @@ def test_preparing_copies_the_included_services_once(auth_client):
     assert [row["id"] for row in again] == [first[0]["id"]]
 
 
+def test_preparing_leaves_out_the_alternatives_that_were_not_chosen(auth_client):
+    # Una alternativa es otra opción para un servicio que ya está: no suma al precio y no se
+    # reserva, o se le pediría a un proveedor algo que el cliente no compró.
+    api = auth_client(permissions=MANAGE)
+    quote = QuoteFactory(accepted=True)
+    hotel = QuoteItemFactory(quote=quote, name="Hotel Las Américas")
+    QuoteItemFactory(quote=quote, name="Hotel Caribe", alternative_of_id=hotel.id)
+    sale = api.post("/api/sales", json={"quote_id": quote.id}).json()
+
+    bookings = api.post(f"/api/sales/{sale['id']}/bookings/prepare").json()
+
+    assert [row["name"] for row in bookings] == ["Hotel Las Américas"]
+
+
 def test_confirming_a_booking(auth_client):
     api = auth_client(permissions=MANAGE)
     quote = QuoteFactory(accepted=True)
@@ -46,3 +60,25 @@ def test_viewing_is_not_enough_to_prepare(auth_client):
     viewer = auth_client(permissions=["sales.view"])
 
     assert viewer.post("/api/sales/1/bookings/prepare").status_code == 403
+
+
+def test_listing_bookings_by_sale(auth_client):
+    api = auth_client(permissions=MANAGE)
+    sales = []
+    for name in ("Hotel Las Américas", "Hotel Caribe"):
+        quote = QuoteFactory(accepted=True)
+        QuoteItemFactory(quote=quote, name=name)
+        sale = api.post("/api/sales", json={"quote_id": quote.id}).json()
+        api.post(f"/api/sales/{sale['id']}/bookings/prepare")
+        sales.append(sale)
+
+    rows = api.get("/api/bookings", params={"sale_id": sales[1]["id"]}).json()["results"]
+
+    assert [row["name"] for row in rows] == ["Hotel Caribe"]
+
+
+def test_unknown_sale_or_booking_is_not_found(auth_client):
+    api = auth_client(permissions=MANAGE)
+
+    assert api.post("/api/sales/999999/bookings/prepare").status_code == 404
+    assert api.put("/api/bookings/999999", json={"status": "confirmed"}).status_code == 404

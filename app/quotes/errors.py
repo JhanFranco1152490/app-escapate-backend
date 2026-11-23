@@ -31,6 +31,14 @@ class QuoteWithoutItems(ApiError):
     detail = "Agrega al menos un servicio antes de enviar la cotización."
 
 
+class QuoteWithoutExchangeRate(ApiError):
+    status_code, code = 409, "exchange_rate_missing"
+    detail = (
+        "Hay servicios en dólares y la cotización no tiene tasa de cambio. "
+        "Agrégala en los precios antes de enviarla."
+    )
+
+
 class QuoteExpired(ApiError):
     status_code, code = 409, "quote_expired"
     detail = "La cotización venció. Devuélvela a borrador y actualiza la vigencia."

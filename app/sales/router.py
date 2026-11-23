@@ -48,7 +48,7 @@ def add_payment(
 def remove_payment(
     sale_id: RecordId, payment_id: RecordId, actor: Manager, session: SessionDep
 ) -> SaleDetail:
-    return services.remove_payment(session, sale_id, payment_id)
+    return services.remove_payment(session, actor, sale_id, payment_id)
 
 
 # --- Reservas ------------------------------------------------------------------------------
