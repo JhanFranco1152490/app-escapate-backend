@@ -136,6 +136,10 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     abierta: logout, límite de sesiones o robo lo invalidan al instante. En las pruebas, un
     cliente autenticado sale de `auth_client` (abre una sesión real); un access token armado
     a mano con `create_token` sin `session_id` se rechaza.
+  - `decode_token` tolera 10 segundos de diferencia de reloj (`leeway`): la fecha de emisión se
+    guarda en segundos enteros y, sin tolerancia, un salto hacia atrás del reloj o una réplica
+    con la hora adelantada rechazaba al azar un token recién emitido con
+    `401 authentication_failed`. Era la causa de un test intermitente en WSL2.
   - El bloqueo por intentos fallidos cuenta por pareja documento + IP (5) y, aparte, por
     documento en todas las IP (20, fila de `login_attempt` con `ip = "*"`); los fallos más
     viejos que 15 minutos dejan de sumar.

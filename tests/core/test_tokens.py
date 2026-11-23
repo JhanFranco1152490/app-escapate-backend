@@ -56,3 +56,26 @@ def expired() -> str:
 def test_invalid_access_tokens_fail_authentication(token):
     with pytest.raises(AuthenticationFailed):
         decode_token(token(), "access")
+
+
+def issued_ahead(seconds: int) -> str:
+    now = datetime.now(UTC)
+    return encode(
+        {
+            "sub": "42",
+            "type": "access",
+            "iat": now + timedelta(seconds=seconds),
+            "exp": now + timedelta(minutes=5),
+        }
+    )
+
+
+def test_a_token_issued_a_few_seconds_ahead_of_this_clock_is_accepted():
+    # Otra réplica con el reloj adelantado, o un salto hacia atrás del reloj de este servidor,
+    # no debe rechazar un token recién emitido.
+    assert decode_token(issued_ahead(5), "access")["sub"] == "42"
+
+
+def test_a_token_issued_far_in_the_future_is_rejected():
+    with pytest.raises(AuthenticationFailed):
+        decode_token(issued_ahead(120), "access")
