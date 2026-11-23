@@ -45,6 +45,30 @@ def test_a_dollar_service_without_rate_is_flagged_and_left_out():
     assert (result.sale, result.missing_exchange_rate, result.margin_percent) == (0, True, None)
 
 
+def test_a_dollar_service_without_rate_is_flagged_even_with_a_price_by_hand():
+    # El precio escrito a mano se conoce, pero el costo en pesos no: sin el aviso la ganancia
+    # saldría inflada con un costo que se cuenta como cero.
+    result = totals([LineAmounts(cost=None, sale=900_000, is_optional=False)], 2, None)
+
+    assert result.missing_exchange_rate is True
+
+
+def test_the_detail_flags_a_dollar_service_with_a_price_by_hand_and_no_rate(auth_client, session):
+    quote = QuoteFactory(adults=2, minors=0, exchange_rate=None)
+    QuoteItemFactory(
+        quote=quote,
+        currency="USD",
+        unit_cost=Decimal("100"),
+        quantity=1,
+        sale_price_override=900_000,
+    )
+    api = auth_client(permissions=["quotes.view"])
+
+    totals_out = api.get(f"/api/quotes/{quote.id}").json()["totals"]
+
+    assert totals_out["missing_exchange_rate"] is True
+
+
 def test_the_detail_answers_each_price_and_the_totals(auth_client, advisor_role, session):
     quote = QuoteFactory(adults=2, minors=0, exchange_rate=Decimal("4000"))
     QuoteItemFactory(quote=quote, unit_cost=Decimal("400000"), quantity=2)

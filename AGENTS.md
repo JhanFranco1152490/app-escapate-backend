@@ -104,8 +104,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   | `suppliers` | `accounts` (`models.UserAccount`: quién registró y quién desactivó) |
   | `travel_requests` | `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el nombre del cliente; `models.Traveler`, para los viajeros de la solicitud) y `accounts` (`models.UserAccount` y `RolePermission`: quién registró, el asesor responsable y quién puede serlo) |
   | `quotes` | `travel_requests` (`models.TravelRequest`, `services.request_management.ensure_open` y `services.request_status.refresh_status`: la cotización nace de una solicitud abierta y la pasa a cotizada; `services.demo_travel_requests.find_demo_request`, para la carga de demostración), `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el cliente), `suppliers` (`models.Supplier`, `tourist_service_models.TouristService` y `service_types`: los servicios del catálogo) y `accounts` (`models.UserAccount`) |
-  | `sales` | `quotes` (`models.Quote`/`QuoteItem` y `services.quote_queries.get_quote`, con sus totales: se vende una cotización aceptada; `services.demo_quotes.find_demo_quote`, para la carga de demostración), `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el cliente), `suppliers` (`models.Supplier` y `service_types`: el proveedor y el tipo de cada reserva) y `accounts` (`models.UserAccount`) |
-  | `finance` | `sales` (`models.Sale`/`ClientPayment`: costos reales de una venta e ingresos de caja; `demo_sales.find_demo_sale`), `suppliers` (`models.Supplier`) y `accounts` (`models.UserAccount`) |
+  | `sales` | `quotes` (`models.Quote`/`QuoteItem` y `services.quote_queries.get_quote`, con sus totales: se vende una cotización aceptada; `services.demo_quotes.find_demo_quote`, para la carga de demostración), `clients` (`models.Client` y `services.client_queries.display_name`, para buscar por el cliente), `suppliers` (`models.Supplier` y `service_types`: el proveedor y el tipo de cada reserva), `audit` (`models.DeletionKind` y `services.record_deletion`: constancia de un pago borrado) y `accounts` (`models.UserAccount`) |
+  | `finance` | `sales` (`models.Sale`/`ClientPayment`: costos reales de una venta e ingresos de caja; `demo_sales.find_demo_sale`), `suppliers` (`models.Supplier`), `audit` (`models.DeletionKind` y `services.record_deletion`: constancia de un costo o un gasto borrado) y `accounts` (`models.UserAccount`) |
+  | `audit` | `accounts` (`models.UserAccount`: quién borró). Lo usan `sales` y `finance`; no importa de ellos |
   | `reports` | solo lee los `models.py` de `travel_requests`, `quotes`, `sales`, `finance`, `clients`, `suppliers` y `accounts`. Nadie importa de `reports` |
   | `imports` | `clients` (`schemas.ClientCreate`, `services.client_management.create_client`, `models.Client`) y `suppliers` (`schemas.SupplierCreate`, `services.supplier_management.create_supplier`, `models.Supplier`). Nadie importa de `imports` |
 
@@ -136,6 +137,10 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     abierta: logout, límite de sesiones o robo lo invalidan al instante. En las pruebas, un
     cliente autenticado sale de `auth_client` (abre una sesión real); un access token armado
     a mano con `create_token` sin `session_id` se rechaza.
+  - `decode_token` tolera 10 segundos de diferencia de reloj (`leeway`): la fecha de emisión se
+    guarda en segundos enteros y, sin tolerancia, un salto hacia atrás del reloj o una réplica
+    con la hora adelantada rechazaba al azar un token recién emitido con
+    `401 authentication_failed`. Era la causa de un test intermitente en WSL2.
   - El bloqueo por intentos fallidos cuenta por pareja documento + IP (5) y, aparte, por
     documento en todas las IP (20, fila de `login_attempt` con `ip = "*"`); los fallos más
     viejos que 15 minutos dejan de sumar.
@@ -395,7 +400,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     dominio desde `travel_requests`.
   - Estados `draft -> sent -> accepted | rejected`. Solo se edita en `draft`
     (`409 quote_not_editable`); `sent` y `rejected` vuelven a `draft` y `accepted` ya no
-    cambia. Enviar exige al menos un servicio y una vigencia que no haya pasado. `vencida`
+    cambia. Enviar exige al menos un servicio, una vigencia que no haya pasado y, si hay
+    servicios en dólares, la tasa de cambio (`409 exchange_rate_missing`): sin tasa su costo
+    queda en cero y la venta copiaría una ganancia inflada. `vencida`
     no se guarda: es `sent` con `valid_until` anterior a hoy (`is_expired`, filtro `expired`),
     y una vencida no se acepta (`409 quote_expired`). `sent_at` y `decided_at` los vigilan
     `CHECK` de la tabla.
@@ -449,7 +456,12 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   - Los pagos del cliente (`ClientPayment`) son abonos en pesos enteros; un abono no pasa el
     saldo. Venta y pago leen la cotización o la venta con `FOR UPDATE`: dos ventas de la misma
     cotización, o dos abonos simultáneos que juntos pasan el saldo, no quedan guardados los
-    dos. Saldo y estado (`pending`, `partial`, `paid`) se calculan, no se guardan.
+    dos. Saldo y estado (`pending`, `partial`, `paid`) se calculan, no se guardan. Quitar un
+    pago lo borra de verdad y deja constancia en `audit` (ver abajo).
+  - `SaleDetail.total_cost` (el costo estimado que copió la venta) se ve con `sales.view`: es
+    la misma información que ya ve quien tiene `quotes.view` en el total de la cotización,
+    donde el asesor arma el precio a partir del costo. El costo real y la ganancia son de
+    `finance.view`.
   - **Reservas** (`booking_models.py`, `booking_services.py`): preparar crea una reserva por
     cada servicio incluido de la cotización vendida (`ON CONFLICT DO NOTHING`: repetirlo solo
     agrega las que falten). Estados `to_request`, `requested`, `confirmed` y `cancelled`, con
@@ -460,13 +472,27 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   Operativo). La rentabilidad de una venta usa el costo real si ya hay alguno y, si no, el
   estimado. El resumen de caja (`/api/finance/summary`) va por fecha de pago: entra lo que
   pagan los clientes y sale lo pagado a proveedores y los gastos. Nada de eso se guarda.
+  Quitar un costo real o un gasto los borra de verdad y deja constancia en `audit`. Con un
+  solo costo real registrado la rentabilidad ya usa solo el real (no hay forma de saber si
+  faltan costos); la pantalla muestra el real junto al estimado y avisa cuando es menor.
+- **Registro de borrados (`app/audit/`):** `DeletionRecord` guarda quién borró un pago de
+  cliente, un costo real o un gasto, y cuándo (`kind`, `record_id`, `sale_id`, `amount`,
+  `occurred_on`, una `description` corta y `deleted_by`). `record_deletion` agrega la fila
+  **sin `commit()`**, en la transacción del borrado: quedan los dos o ninguno. No copia
+  textos libres (notas, referencias) por si traen datos personales, y `record_id` y
+  `sale_id` no son claves foráneas: la fila a la que apuntaban ya no existe, y atarlas
+  haría depender a este dominio de quienes lo usan. Solo se agrega: no se edita ni se
+  borra. `GET /api/audit/deletions` (con filtro `kind`, lo más reciente primero) pide
+  `finance.view`.
 - **Reportes (`app/reports/`):** solo lecturas sobre los demás dominios. Permiso
-  `reports.view` (rol protegido, Asesor comercial y Operativo); el indicador financiero pide
-  además `finance.view`. Dashboard, indicadores comerciales y financieros por período, y
-  reportes en tabla (`sales`, `payments`, `quotes`, `expenses`, `requests`) que el frontend
-  exporta. El historial del cliente (`client_history.py`,
+  `reports.view` (rol protegido, Asesor comercial y Operativo); el indicador financiero y el
+  reporte de gastos (`expenses`) piden además `finance.view`. Dashboard, indicadores
+  comerciales y financieros por período, y reportes en tabla (`sales`, `payments`, `quotes`,
+  `expenses`, `requests`) que el frontend exporta. El historial del cliente (`client_history.py`,
   `/api/reports/clients/{id}/history`) junta solicitudes, cotizaciones, ventas y pagos en
-  una línea de tiempo y pide solo `clients.view`, porque va en la ficha del cliente.
+  una línea de tiempo y va en la ficha del cliente, pero pide el permiso de cada cosa que
+  muestra (`clients.view`, `travel_requests.view`, `quotes.view` y `sales.view`): si falta
+  alguno responde 403 y la ficha no muestra la sección.
 - **Carga inicial desde CSV (`app/imports/`):**
   `uv run python -m app.cli import-csv {clients,suppliers} ARCHIVO --as CORREO [--dry-run]`.
   `csv_rows.py` lee el archivo (BOM, `;` o `,`, celdas vacías, listas con `|`, sí/no) e

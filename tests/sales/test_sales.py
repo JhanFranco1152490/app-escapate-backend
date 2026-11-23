@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from app.common.dates import today
-from tests.factories import QuoteFactory, QuoteItemFactory
+from tests.factories import ClientFactory, QuoteFactory, QuoteItemFactory
 
 MANAGE = ["sales.view", "sales.manage"]
 
@@ -113,3 +113,56 @@ def test_future_date_is_allowed_for_a_scheduled_transfer(api):
         },
     )
     assert response.status_code == 201
+
+
+def test_searching_by_client_destination_or_code(api):
+    marta = sell(
+        api,
+        accepted_quote(
+            client=ClientFactory(first_name="Marta", last_name="Zapatoca"),
+            destination="Cartagena",
+        ),
+    )
+    sell(api, accepted_quote(destination="Medellín"))
+
+    def ids(text: str) -> list[int]:
+        rows = api.get("/api/sales", params={"q": text}).json()["results"]
+        return [row["id"] for row in rows]
+
+    assert ids("Zapatoca") == [marta["id"]]
+    assert ids("cartagena") == [marta["id"]]
+    assert ids(marta["code"]) == [marta["id"]]
+    assert ids("sin coincidencias") == []
+
+
+def test_filtering_by_quote_and_by_client(api):
+    first = sell(api, accepted_quote())
+    second = sell(api, accepted_quote())
+
+    def ids(**params) -> list[int]:
+        return [row["id"] for row in api.get("/api/sales", params=params).json()["results"]]
+
+    assert ids(quote_id=first["quote"]["id"]) == [first["id"]]
+    assert ids(client_id=second["client"]["id"]) == [second["id"]]
+
+
+def test_unknown_records_are_not_found(api):
+    sale = sell(api, accepted_quote())
+    other = sell(api, accepted_quote())
+    payment = pay(api, other, 100_000).json()["payments"][0]
+
+    assert api.get("/api/sales/999999").status_code == 404
+    assert pay(api, {"id": 999999}, 1_000).status_code == 404
+    assert api.delete(f"/api/sales/{sale['id']}/payments/999999").status_code == 404
+    # Un pago de otra venta no se quita desde esta.
+    assert api.delete(f"/api/sales/{sale['id']}/payments/{payment['id']}").status_code == 404
+
+
+def test_selling_needs_a_known_quote_and_a_price(api):
+    unknown = api.post("/api/sales", json={"quote_id": 999999})
+    free = api.post("/api/sales", json={"quote_id": QuoteFactory(accepted=True).id})
+
+    assert unknown.status_code == 422
+    assert "quote_id" in unknown.json()["fields"]
+    assert free.status_code == 422
+    assert free.json()["fields"] == {"total_price": ["Indica el precio de la venta."]}

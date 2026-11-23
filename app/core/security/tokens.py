@@ -11,6 +11,10 @@ ACCESS_TTL = timedelta(minutes=15)
 REFRESH_TTL = timedelta(days=7)
 _ALGORITHM = "HS256"
 _TTL = {"access": ACCESS_TTL, "refresh": REFRESH_TTL}
+# La fecha de emisión se guarda en segundos enteros: con relojes que difieren unos milisegundos
+# (réplicas distintas, o un salto del reloj) un token recién emitido parecería venir del futuro
+# y se rechazaría una petición cualquiera. Esta tolerancia también aplica a la expiración.
+_CLOCK_LEEWAY_SECONDS = 10
 
 
 def create_token(
@@ -35,6 +39,7 @@ def decode_token(token: str, token_type: TokenType) -> dict:
             settings.secret_key,
             algorithms=[_ALGORITHM],
             options={"require": ["exp", "sub", "type"]},
+            leeway=_CLOCK_LEEWAY_SECONDS,
         )
     except jwt.InvalidTokenError as exc:
         raise AuthenticationFailed() from exc
