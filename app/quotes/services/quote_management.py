@@ -19,6 +19,7 @@ from app.quotes.errors import (
     VALIDITY_IN_PAST,
     QuoteExpired,
     QuoteNotEditable,
+    QuoteWithoutExchangeRate,
     QuoteWithoutItems,
     QuoteWrongStatus,
 )
@@ -146,6 +147,8 @@ def send_quote(session: Session, quote_id: int, data: QuoteTransition) -> Quote:
     ).one()
     if not items:
         raise QuoteWithoutItems()
+    if quote.totals.missing_exchange_rate:
+        raise QuoteWithoutExchangeRate()
     _check_validity(quote.valid_until)
     quote.status = QuoteStatus.SENT
     quote.sent_at = datetime.now(timezone.utc)

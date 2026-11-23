@@ -399,7 +399,9 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
     dominio desde `travel_requests`.
   - Estados `draft -> sent -> accepted | rejected`. Solo se edita en `draft`
     (`409 quote_not_editable`); `sent` y `rejected` vuelven a `draft` y `accepted` ya no
-    cambia. Enviar exige al menos un servicio y una vigencia que no haya pasado. `vencida`
+    cambia. Enviar exige al menos un servicio, una vigencia que no haya pasado y, si hay
+    servicios en dólares, la tasa de cambio (`409 exchange_rate_missing`): sin tasa su costo
+    queda en cero y la venta copiaría una ganancia inflada. `vencida`
     no se guarda: es `sent` con `valid_until` anterior a hoy (`is_expired`, filtro `expired`),
     y una vencida no se acepta (`409 quote_expired`). `sent_at` y `decided_at` los vigilan
     `CHECK` de la tabla.
