@@ -60,3 +60,25 @@ def test_viewing_is_not_enough_to_prepare(auth_client):
     viewer = auth_client(permissions=["sales.view"])
 
     assert viewer.post("/api/sales/1/bookings/prepare").status_code == 403
+
+
+def test_listing_bookings_by_sale(auth_client):
+    api = auth_client(permissions=MANAGE)
+    sales = []
+    for name in ("Hotel Las Américas", "Hotel Caribe"):
+        quote = QuoteFactory(accepted=True)
+        QuoteItemFactory(quote=quote, name=name)
+        sale = api.post("/api/sales", json={"quote_id": quote.id}).json()
+        api.post(f"/api/sales/{sale['id']}/bookings/prepare")
+        sales.append(sale)
+
+    rows = api.get("/api/bookings", params={"sale_id": sales[1]["id"]}).json()["results"]
+
+    assert [row["name"] for row in rows] == ["Hotel Caribe"]
+
+
+def test_unknown_sale_or_booking_is_not_found(auth_client):
+    api = auth_client(permissions=MANAGE)
+
+    assert api.post("/api/sales/999999/bookings/prepare").status_code == 404
+    assert api.put("/api/bookings/999999", json={"status": "confirmed"}).status_code == 404

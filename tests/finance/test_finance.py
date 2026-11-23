@@ -83,3 +83,65 @@ def test_finance_needs_its_own_permission(auth_client):
     )
 
     assert response.status_code == 403
+
+
+def add_cost(api, sale: dict, **body) -> dict:
+    response = api.post(
+        f"/api/sales/{sale['id']}/costs",
+        json={"description": "Hotel", "amount": 1_050_000, **body},
+    )
+    assert response.status_code == 201, response.json()
+    return response.json()
+
+
+def test_editing_a_cost_changes_the_profit(api):
+    sale = new_sale(api)
+    cost = add_cost(api, sale)["costs"][0]
+
+    result = api.put(
+        f"/api/costs/{cost['id']}",
+        json={
+            "description": "Hotel y traslado",
+            "amount": 900_000,
+            "paid_on": today().isoformat(),
+        },
+    ).json()
+
+    assert (result["profit"], result["paid_to_suppliers"]) == (250_000, 900_000)
+    assert [row["description"] for row in result["costs"]] == ["Hotel y traslado"]
+
+
+def test_removing_the_only_cost_goes_back_to_the_estimate(api):
+    sale = new_sale(api)
+    cost = add_cost(api, sale)["costs"][0]
+
+    result = api.delete(f"/api/costs/{cost['id']}").json()
+
+    assert (result["uses_actual_cost"], result["profit"], result["costs"]) == (False, 150_000, [])
+
+
+def test_a_cost_needs_a_supplier_that_exists(api):
+    sale = new_sale(api)
+    cost = add_cost(api, sale)["costs"][0]
+
+    created = api.post(
+        f"/api/sales/{sale['id']}/costs",
+        json={"description": "Hotel", "amount": 1_000, "supplier_id": 999999},
+    )
+    edited = api.put(
+        f"/api/costs/{cost['id']}",
+        json={"description": "Hotel", "amount": 1_000, "supplier_id": 999999},
+    )
+
+    for response in (created, edited):
+        assert response.status_code == 422
+        assert response.json()["fields"] == {"supplier_id": ["El proveedor no existe."]}
+
+
+def test_unknown_sale_or_cost_is_not_found(api):
+    body = {"description": "Hotel", "amount": 1_000}
+
+    assert api.get("/api/sales/999999/profitability").status_code == 404
+    assert api.post("/api/sales/999999/costs", json=body).status_code == 404
+    assert api.put("/api/costs/999999", json=body).status_code == 404
+    assert api.delete("/api/costs/999999").status_code == 404
