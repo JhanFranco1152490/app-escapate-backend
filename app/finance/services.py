@@ -9,6 +9,8 @@ from sqlalchemy.orm import joinedload
 from sqlmodel import Session, col, select
 
 from app.accounts.models import UserAccount
+from app.audit.models import DeletionKind
+from app.audit.services import record_deletion
 from app.common.errors import InvalidFields, NotFound
 from app.common.pagination import Page, PageParams, paginate
 from app.finance.models import ActualCost, ExpenseCategory, OperatingExpense
@@ -90,11 +92,21 @@ def update_cost(session: Session, cost_id: int, data: ActualCostInput) -> Profit
     return profitability(session, cost.sale_id)
 
 
-def remove_cost(session: Session, cost_id: int) -> Profitability:
+def remove_cost(session: Session, actor: UserAccount, cost_id: int) -> Profitability:
     cost = session.get(ActualCost, cost_id)
     if cost is None:
         raise NotFound()
     sale_id = cost.sale_id
+    record_deletion(
+        session,
+        actor,
+        kind=DeletionKind.ACTUAL_COST,
+        record_id=cost.id,
+        sale_id=sale_id,
+        description=cost.description,
+        amount=cost.amount,
+        occurred_on=cost.paid_on,
+    )
     session.delete(cost)
     session.commit()
     return profitability(session, sale_id)
@@ -123,10 +135,19 @@ def add_expense(session: Session, actor: UserAccount, data: ExpenseInput) -> Ope
     return expense
 
 
-def remove_expense(session: Session, expense_id: int) -> None:
+def remove_expense(session: Session, actor: UserAccount, expense_id: int) -> None:
     expense = session.get(OperatingExpense, expense_id)
     if expense is None:
         raise NotFound()
+    record_deletion(
+        session,
+        actor,
+        kind=DeletionKind.OPERATING_EXPENSE,
+        record_id=expense.id,
+        description=expense.description,
+        amount=expense.amount,
+        occurred_on=expense.spent_on,
+    )
     session.delete(expense)
     session.commit()
 

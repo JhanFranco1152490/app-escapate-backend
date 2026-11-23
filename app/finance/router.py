@@ -46,7 +46,7 @@ def update_cost(
 
 @router.delete("/costs/{cost_id}", responses=_WRITE)
 def remove_cost(cost_id: RecordId, actor: Manager, session: SessionDep) -> Profitability:
-    return services.remove_cost(session, cost_id)
+    return services.remove_cost(session, actor, cost_id)
 
 
 @router.get("/expenses", dependencies=[can_view], responses=_READ)
@@ -66,7 +66,7 @@ def add_expense(data: ExpenseInput, actor: Manager, session: SessionDep) -> Expe
 
 @router.delete("/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT, responses=_WRITE)
 def remove_expense(expense_id: RecordId, actor: Manager, session: SessionDep) -> None:
-    services.remove_expense(session, expense_id)
+    services.remove_expense(session, actor, expense_id)
 
 
 @router.get("/finance/summary", dependencies=[can_view], responses=_READ)
